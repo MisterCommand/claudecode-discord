@@ -6,7 +6,6 @@ import { pipeline } from "node:stream/promises";
 import { Readable } from "node:stream";
 import { checkRateLimit } from "../../security/guard.js";
 import { getConfig } from "../../utils/config.js";
-import { L } from "../../utils/i18n.js";
 import {
   createChain, getChainByMessage, getChainsForChannel, mapMessage, replaceMissingSession,
 } from "../../db/database.js";
@@ -109,7 +108,7 @@ export async function handleMessage(message: Message): Promise<void> {
   if (!referencedChain && !mentioned) return;
 
   if (!checkRateLimit(message.author.id)) {
-    await message.reply(L("Rate limit exceeded. Please wait a moment.", "요청 한도를 초과했습니다. 잠시 후 다시 시도하세요."));
+    await message.reply("Rate limit exceeded. Please wait a moment.");
     return;
   }
 

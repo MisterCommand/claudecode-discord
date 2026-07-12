@@ -13,8 +13,6 @@ Control Claude Code from your phone — a multi-machine agent hub via Discord.
   <img src="docs/demo.gif" alt="Demo — start and continue Claude sessions from Discord" width="300">
 </p>
 
-> **[Korean documentation (한국어)](docs/README.kr.md)**
-
 ## Why This Bot? — vs Official Remote Control
 
 Anthropic's [Remote Control](https://code.claude.com/docs/en/remote-control) lets you view a running local session from your phone. This bot goes further — it's a **multi-machine agent hub** that runs as a daemon, creates new sessions on demand, and supports team collaboration.

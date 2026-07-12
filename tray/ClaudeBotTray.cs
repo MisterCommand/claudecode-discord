@@ -46,26 +46,10 @@ class ClaudeBotTray : Form
     private DateTime? usageLastFetched = null;
     private System.Windows.Forms.Timer usageTimer;
 
-    // Language support
-    private string langPrefFile;
-    private bool isKorean = false;
-
     public ClaudeBotTray()
     {
         botDir = Path.GetDirectoryName(Path.GetDirectoryName(Application.ExecutablePath));
         envPath = Path.Combine(botDir, ".env");
-        langPrefFile = Path.Combine(botDir, ".tray-lang");
-
-        // Load saved language preference
-        try
-        {
-            if (File.Exists(langPrefFile))
-            {
-                string saved = File.ReadAllText(langPrefFile).Trim();
-                isKorean = (saved == "kr");
-            }
-        }
-        catch { }
 
         this.ShowInTaskbar = false;
         this.WindowState = FormWindowState.Minimized;
@@ -119,7 +103,7 @@ class ClaudeBotTray : Form
 
         if (!IsEnvConfigured())
         {
-            // .env 없거나 설정 안 됐으면 패널 열기 (패널에서 설정 버튼 제공)
+            // Open panel if .env is missing or unconfigured (panel provides setup button)
             System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
             t.Interval = 500;
             t.Tick += (s, e) => { t.Stop(); ShowControlPanel(); };
@@ -127,7 +111,7 @@ class ClaudeBotTray : Form
         }
         else if (!IsRunning())
         {
-            // .env 있고 봇이 안 돌고 있으면 자동 시작
+            // Auto-start if .env exists but bot is not running
             System.Windows.Forms.Timer t = new System.Windows.Forms.Timer();
             t.Interval = 1000;
             t.Tick += (s, e) => { t.Stop(); StartBot(null, null); };
@@ -141,20 +125,6 @@ class ClaudeBotTray : Form
             st.Tick += (s, e) => { st.Stop(); ShowControlPanel(); };
             st.Start();
         }
-    }
-
-    // --- Localization ---
-    private string L(string en, string kr)
-    {
-        return isKorean ? kr : en;
-    }
-
-    private void SetLanguage(bool korean)
-    {
-        isKorean = korean;
-        try { File.WriteAllText(langPrefFile, korean ? "kr" : "en"); } catch { }
-        UpdateStatus();
-        BuildMenu();
     }
 
     private bool IsRunning()
@@ -303,7 +273,7 @@ class ClaudeBotTray : Form
     {
         var form = new Form()
         {
-            Text = L("Update Available", "업데이트 가능"),
+            Text = "Update Available",
             Width = 500, Height = 450,
             StartPosition = FormStartPosition.CenterScreen,
             FormBorderStyle = FormBorderStyle.FixedDialog,
@@ -327,7 +297,7 @@ class ClaudeBotTray : Form
 
         var descLabel = new Label()
         {
-            Text = L("The bot will restart after updating.", "업데이트 후 봇이 재시작됩니다."),
+            Text = "The bot will restart after updating.",
             Left = 20, Top = 42, Width = 440, Height = 20,
             ForeColor = Color.Gray, BackColor = Color.Transparent,
             Font = new Font(FontFamily.GenericSansSerif, 9)
@@ -348,7 +318,7 @@ class ClaudeBotTray : Form
 
         var updateBtn = new Button()
         {
-            Text = L("Update", "업데이트"), Left = 20, Top = 365, Width = 215, Height = 36,
+            Text = "Update", Left = 20, Top = 365, Width = 215, Height = 36,
             FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(88, 101, 242), ForeColor = Color.White,
             Font = new Font(FontFamily.GenericSansSerif, 10, FontStyle.Bold)
         };
@@ -358,7 +328,7 @@ class ClaudeBotTray : Form
 
         var cancelBtn = new Button()
         {
-            Text = L("Cancel", "취소"), Left = 245, Top = 365, Width = 215, Height = 36,
+            Text = "Cancel", Left = 245, Top = 365, Width = 215, Height = 36,
             FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(55, 55, 55), ForeColor = Color.White,
             Font = new Font(FontFamily.GenericSansSerif, 10)
         };
@@ -381,9 +351,8 @@ class ClaudeBotTray : Form
         else
         {
             result = MessageBox.Show(
-                L("Do you want to update to the latest version? The bot will restart after updating.",
-                  "최신 버전으로 업데이트하시겠습니까? 업데이트 후 봇이 재시작됩니다."),
-                L("Update Available", "업데이트 가능"),
+                "Do you want to update to the latest version? The bot will restart after updating.",
+                "Update Available",
                 MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question);
         }
@@ -407,8 +376,8 @@ class ClaudeBotTray : Form
         if (!string.IsNullOrEmpty(afterPull) && !string.IsNullOrEmpty(remote) && afterPull != remote)
         {
             MessageBox.Show(
-                L("Update failed. git pull may have failed:\n", "업데이트 실패. git pull이 실패했을 수 있습니다:\n") + pullOutput,
-                L("Update Failed", "업데이트 실패"),
+                "Update failed. git pull may have failed:\n" + pullOutput,
+                "Update Failed",
                 MessageBoxButtons.OK, MessageBoxIcon.Error);
             if (wasRunning) StartBot(null, null);
             return;
@@ -420,8 +389,8 @@ class ClaudeBotTray : Form
         currentVersion = GetVersion();
         updateAvailable = false;
 
-        // Tray exe 재컴파일 및 재시작
-        // 실행 중인 자기 자신은 삭제 불가하므로 bat 스크립트로 대기 후 교체
+        // Recompile and restart tray exe
+        // Running process can't delete itself, so use bat script to wait and replace
         string trayExe = Application.ExecutablePath;
         string traySrc = Path.Combine(Path.GetDirectoryName(trayExe), "ClaudeBotTray.cs");
         string updateBat = Path.Combine(botDir, ".tray-update.bat");
@@ -466,20 +435,20 @@ class ClaudeBotTray : Form
             };
             Process.Start(psi);
 
-            // 자기 자신 종료 (bat이 대기 후 처리)
+            // Kill self (bat script waits and handles)
             trayIcon.Visible = false;
             Application.Exit();
             return;
         }
 
-        // traySrc 없으면 (비정상 상황) 그냥 봇만 재시작
+        // No traySrc (abnormal situation) — just restart bot
         if (wasRunning)
         {
             StartBot(null, null);
         }
 
-        MessageBox.Show(L("Updated to version: ", "업데이트 완료: ") + currentVersion,
-            L("Update Complete", "업데이트 완료"), MessageBoxButtons.OK, MessageBoxIcon.Information);
+        MessageBox.Show("Updated to version: " + currentVersion,
+            "Update Complete", MessageBoxButtons.OK, MessageBoxIcon.Information);
         UpdateStatus();
         BuildMenu();
     }
@@ -564,17 +533,17 @@ class ClaudeBotTray : Form
         if (!hasEnv)
         {
             color = Color.Orange;
-            text = L("Claude Discord Bot: Setup Required", "Claude Discord Bot: 설정 필요");
+            text = "Claude Discord Bot: Setup Required";
         }
         else if (running)
         {
             color = Color.LimeGreen;
-            text = L("Claude Discord Bot: Running", "Claude Discord Bot: 실행 중");
+            text = "Claude Discord Bot: Running";
         }
         else
         {
             color = Color.Red;
-            text = L("Claude Discord Bot: Stopped", "Claude Discord Bot: 중지됨");
+            text = "Claude Discord Bot: Stopped";
         }
 
         bool changed = (text != lastStatusText);
@@ -594,61 +563,51 @@ class ClaudeBotTray : Form
 
         if (!hasEnv)
         {
-            var noEnv = new ToolStripMenuItem(L("Setup Required", "설정 필요")) { Enabled = false };
+            var noEnv = new ToolStripMenuItem("Setup Required") { Enabled = false };
             menu.Items.Add(noEnv);
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(L("Setup...", "설정..."), null, OpenSettings);
+            menu.Items.Add("Setup...", null, OpenSettings);
         }
         else
         {
-            var status = new ToolStripMenuItem(running ? L("Running", "실행 중") : L("Stopped", "중지됨")) { Enabled = false };
+            var status = new ToolStripMenuItem(running ? "Running" : "Stopped") { Enabled = false };
             menu.Items.Add(status);
             menu.Items.Add(new ToolStripSeparator());
 
             if (running)
             {
-                menu.Items.Add(L("Stop Bot", "봇 중지"), null, StopBot);
-                menu.Items.Add(L("Restart Bot", "봇 재시작"), null, RestartBot);
+                menu.Items.Add("Stop Bot", null, StopBot);
+                menu.Items.Add("Restart Bot", null, RestartBot);
             }
             else
             {
-                menu.Items.Add(L("Start Bot", "봇 시작"), null, StartBot);
+                menu.Items.Add("Start Bot", null, StartBot);
             }
 
             menu.Items.Add(new ToolStripSeparator());
-            menu.Items.Add(L("Settings...", "설정..."), null, OpenSettings);
-            menu.Items.Add(L("View Log", "로그 보기"), null, OpenLog);
-            menu.Items.Add(L("Open Folder", "폴더 열기"), null, OpenFolder);
+            menu.Items.Add("Settings...", null, OpenSettings);
+            menu.Items.Add("View Log", null, OpenLog);
+            menu.Items.Add("Open Folder", null, OpenFolder);
         }
 
         menu.Items.Add(new ToolStripSeparator());
 
         // Auto-start toggle
-        var autoStartItem = new ToolStripMenuItem(L("Auto Run on Startup", "시작 시 자동 실행"));
+        var autoStartItem = new ToolStripMenuItem("Auto Run on Startup");
         autoStartItem.Checked = IsAutoStartEnabled();
         autoStartItem.Click += ToggleAutoStart;
         menu.Items.Add(autoStartItem);
 
-        // Language toggle in menu
-        var langItem = new ToolStripMenuItem(isKorean ? "Language: KR" : "Language: EN");
-        var enItem = new ToolStripMenuItem("English") { Checked = !isKorean };
-        enItem.Click += (s, ev) => { SetLanguage(false); };
-        var krItem = new ToolStripMenuItem("한국어") { Checked = isKorean };
-        krItem.Click += (s, ev) => { SetLanguage(true); };
-        langItem.DropDownItems.Add(enItem);
-        langItem.DropDownItems.Add(krItem);
-        menu.Items.Add(langItem);
-
-        var versionItem = new ToolStripMenuItem(L("Version: ", "버전: ") + currentVersion) { Enabled = false };
+        var versionItem = new ToolStripMenuItem("Version: " + currentVersion) { Enabled = false };
         menu.Items.Add(versionItem);
 
         if (updateAvailable)
         {
-            menu.Items.Add(L("Update Available", "업데이트 가능"), null, PerformUpdate);
+            menu.Items.Add("Update Available", null, PerformUpdate);
         }
         else
         {
-            menu.Items.Add(L("Check for Updates", "업데이트 확인"), null, (s, ev) => {
+            menu.Items.Add("Check for Updates", null, (s, ev) => {
                 CheckForUpdates();
                 if (updateAvailable)
                 {
@@ -657,15 +616,15 @@ class ClaudeBotTray : Form
                 else
                 {
                     MessageBox.Show(
-                        L("You are running the latest version.", "최신 버전을 사용 중입니다."),
-                        L("No Updates", "업데이트 없음"),
+                        "You are running the latest version.",
+                        "No Updates",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             });
         }
 
         menu.Items.Add(new ToolStripSeparator());
-        menu.Items.Add(L("Quit", "종료"), null, QuitAll);
+        menu.Items.Add("Quit", null, QuitAll);
 
         trayIcon.ContextMenuStrip = menu;
         if (oldMenu != null)
@@ -742,9 +701,8 @@ class ClaudeBotTray : Form
                 UpdateStatus();
                 BuildMenu();
                 RebuildControlPanel();
-                trayIcon.BalloonTipTitle = L("Claude Discord Bot Started", "Claude Discord Bot 시작됨");
-                trayIcon.BalloonTipText = L("Bot is running. Click tray icon to manage.",
-                                             "봇이 실행 중입니다. 트레이 아이콘을 클릭하여 관리하세요.");
+                trayIcon.BalloonTipTitle = "Claude Discord Bot Started";
+                trayIcon.BalloonTipText = "Bot is running. Click tray icon to manage.";
                 trayIcon.BalloonTipIcon = ToolTipIcon.Info;
                 trayIcon.ShowBalloonTip(3000);
                 trayIcon.BalloonTipClicked += (s3, e3) => { ShowControlPanel(); };
@@ -858,7 +816,7 @@ class ClaudeBotTray : Form
 
         var form = new Form()
         {
-            Text = L("Claude Discord Bot Settings", "Claude Discord Bot 설정"),
+            Text = "Claude Discord Bot Settings",
             Width = 500,
             Height = 520,
             StartPosition = FormStartPosition.CenterScreen,
@@ -870,27 +828,27 @@ class ClaudeBotTray : Form
         };
 
         // Setup guide link
-        var linkLabel = new LinkLabel() { Text = L("Open Setup Guide", "설정 가이드 열기"), Left = 15, Top = 10, Width = 450, Height = 20, LinkColor = LinkBlue, BackColor = Color.Transparent };
+        var linkLabel = new LinkLabel() { Text = "Open Setup Guide", Left = 15, Top = 10, Width = 450, Height = 20, LinkColor = LinkBlue, BackColor = Color.Transparent };
         linkLabel.LinkClicked += (s, ev) => { Process.Start("https://github.com/chadingTV/claudecode-discord/blob/main/SETUP.md"); };
         form.Controls.Add(linkLabel);
 
         // Issues link
-        var issueLabel = new LinkLabel() { Text = L("Bug Report / Feature Request (GitHub Issues)", "버그 신고 / 기능 요청 (GitHub Issues)"), Left = 15, Top = 32, Width = 450, Height = 20, LinkColor = LinkBlue, BackColor = Color.Transparent };
+        var issueLabel = new LinkLabel() { Text = "Bug Report / Feature Request (GitHub Issues)", Left = 15, Top = 32, Width = 450, Height = 20, LinkColor = LinkBlue, BackColor = Color.Transparent };
         issueLabel.LinkClicked += (s, ev) => { Process.Start("https://github.com/chadingTV/claudecode-discord/issues"); };
         form.Controls.Add(issueLabel);
 
         string[][] fields = new string[][] {
             new string[] { "DISCORD_BOT_TOKEN", "Discord Bot Token" },
             new string[] { "DISCORD_GUILD_ID", "Discord Guild ID (Server ID)" },
-            new string[] { "BASE_PROJECT_DIR", L("Base Project Directory", "기본 프로젝트 디렉토리") },
-            new string[] { "RATE_LIMIT_PER_MINUTE", L("Rate Limit Per Minute", "분당 요청 제한") },
+            new string[] { "BASE_PROJECT_DIR", "Base Project Directory" },
+            new string[] { "RATE_LIMIT_PER_MINUTE", "Rate Limit Per Minute" },
         };
 
         string[] defaults = new string[] { "", "", "", "10" };
         string[] placeholders = new string[] {
-            L("Paste your bot token here", "봇 토큰을 여기에 붙여넣으세요"),
-            L("Right-click server > Copy Server ID", "서버 우클릭 > 서버 ID 복사"),
-            L("e.g. C:\\Users\\you\\projects", "예: C:\\Users\\you\\projects"),
+            "Paste your bot token here",
+            "Right-click server > Copy Server ID",
+            "e.g. C:\\Users\\you\\projects",
             "10"
         };
         // Placeholder values from .env.example that should be treated as empty
@@ -929,14 +887,14 @@ class ClaudeBotTray : Form
                 form.Controls.Add(tb);
                 textBoxes[i] = tb;
 
-                var browseBtn = new Button() { Text = L("Browse...", "찾아보기..."), Left = 380, Top = y, Width = 85, Height = tb.Height, FlatStyle = FlatStyle.Flat, BackColor = BgButton, ForeColor = FgWhite };
+                var browseBtn = new Button() { Text = "Browse...", Left = 380, Top = y, Width = 85, Height = tb.Height, FlatStyle = FlatStyle.Flat, BackColor = BgButton, ForeColor = FgWhite };
                 browseBtn.FlatAppearance.BorderSize = 0;
                 int idx = i;
                 browseBtn.Click += (s, ev) =>
                 {
                     using (var fbd = new FolderBrowserDialog())
                     {
-                        fbd.Description = L("Select Base Project Directory", "기본 프로젝트 디렉토리 선택");
+                        fbd.Description = "Select Base Project Directory";
                         if (textBoxes[idx].Text != "") fbd.SelectedPath = textBoxes[idx].Text;
                         if (fbd.ShowDialog() == DialogResult.OK)
                         {
@@ -957,7 +915,7 @@ class ClaudeBotTray : Form
                 {
                     tb.HandleCreated += (s2, e2) => {
                         SendMessage(((TextBox)s2).Handle, EM_SETCUEBANNER, IntPtr.Zero,
-                            "****" + val.Substring(val.Length - 6) + L(" (enter full token to change)", " (변경하려면 전체 토큰 입력)"));
+                            "****" + val.Substring(val.Length - 6) + " (enter full token to change)");
                     };
                 }
                 else if (val != null && val != "")
@@ -983,7 +941,7 @@ class ClaudeBotTray : Form
         }
 
         // Show Cost radio buttons
-        var showCostLabel = new Label() { Text = L("Show Cost", "비용 표시"), Left = 15, Top = y, Width = 450, Font = new Font(FontFamily.GenericSansSerif, 9, FontStyle.Bold), ForeColor = FgWhite, BackColor = Color.Transparent };
+        var showCostLabel = new Label() { Text = "Show Cost", Left = 15, Top = y, Width = 450, Font = new Font(FontFamily.GenericSansSerif, 9, FontStyle.Bold), ForeColor = FgWhite, BackColor = Color.Transparent };
         form.Controls.Add(showCostLabel);
         y += 22;
 
@@ -994,14 +952,14 @@ class ClaudeBotTray : Form
 
         var radioTrue = new RadioButton() { Text = "True", Left = 15, Top = y, Width = 80, Height = 22, ForeColor = FgWhite, BackColor = Color.Transparent, Font = new Font(FontFamily.GenericSansSerif, 9.5f), Checked = showCostEnabled };
         var radioFalse = new RadioButton() { Text = "False", Left = 100, Top = y, Width = 80, Height = 22, ForeColor = FgWhite, BackColor = Color.Transparent, Font = new Font(FontFamily.GenericSansSerif, 9.5f), Checked = !showCostEnabled };
-        var costNote = new Label() { Text = L("(set False for Max plan)", "(Max 요금제는 False)"), Left = 190, Top = y + 2, Width = 250, Height = 20, ForeColor = FgDimGray, BackColor = Color.Transparent, Font = new Font(FontFamily.GenericSansSerif, 8.5f) };
+        var costNote = new Label() { Text = "(set False for Max plan)", Left = 190, Top = y + 2, Width = 250, Height = 20, ForeColor = FgDimGray, BackColor = Color.Transparent, Font = new Font(FontFamily.GenericSansSerif, 8.5f) };
         form.Controls.Add(radioTrue);
         form.Controls.Add(radioFalse);
         form.Controls.Add(costNote);
         y += 34;
 
-        var saveBtn = MakeDarkButton(L("Save", "저장"), 300, y, 80, 32, AccentBlue, Color.White);
-        var cancelBtn = MakeDarkButton(L("Cancel", "취소"), 385, y, 80, 32, BgButton, FgWhite);
+        var saveBtn = MakeDarkButton("Save", 300, y, 80, 32, AccentBlue, Color.White);
+        var cancelBtn = MakeDarkButton("Cancel", 385, y, 80, 32, BgButton, FgWhite);
 
         saveBtn.Click += (s, ev) =>
         {
@@ -1021,9 +979,8 @@ class ClaudeBotTray : Form
             if (values[0] == "" || values[1] == "" || values[2] == "")
             {
                 MessageBox.Show(
-                    L("Bot Token, Guild ID (Server ID), and Base Project Directory are required.",
-                      "Bot Token, Guild ID (서버 ID), 기본 프로젝트 디렉토리는 필수 항목입니다."),
-                    L("Required Fields Missing", "필수 항목 누락"), MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    "Bot Token, Guild ID (Server ID), and Base Project Directory are required.",
+                    "Required Fields Missing", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
 
@@ -1220,43 +1177,6 @@ class ClaudeBotTray : Form
         };
         controlPanel.Controls.Add(verSubLabel);
 
-        // Language toggle - top right
-        var enBtn = new Label()
-        {
-            Text = "EN",
-            Left = panelWidth - 110, Top = y + 6,
-            Width = 32, Height = 22,
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font(FontFamily.GenericSansSerif, 9, !isKorean ? FontStyle.Bold : FontStyle.Regular),
-            ForeColor = !isKorean ? Color.White : FgDimGray,
-            BackColor = !isKorean ? AccentBlue : BgButton,
-            Cursor = Cursors.Hand
-        };
-        var divLabel = new Label()
-        {
-            Text = "|",
-            Left = panelWidth - 78, Top = y + 6,
-            Width = 10, Height = 22,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = SepColor, BackColor = Color.Transparent
-        };
-        var krBtn = new Label()
-        {
-            Text = "KR",
-            Left = panelWidth - 68, Top = y + 6,
-            Width = 32, Height = 22,
-            TextAlign = ContentAlignment.MiddleCenter,
-            Font = new Font(FontFamily.GenericSansSerif, 9, isKorean ? FontStyle.Bold : FontStyle.Regular),
-            ForeColor = isKorean ? Color.White : FgDimGray,
-            BackColor = isKorean ? AccentBlue : BgButton,
-            Cursor = Cursors.Hand
-        };
-        enBtn.Click += (s, ev) => { SetLanguage(false); RebuildControlPanel(); };
-        krBtn.Click += (s, ev) => { SetLanguage(true); RebuildControlPanel(); };
-        controlPanel.Controls.Add(enBtn);
-        controlPanel.Controls.Add(divLabel);
-        controlPanel.Controls.Add(krBtn);
-
         y += 58;
 
         // Separator after header
@@ -1265,7 +1185,7 @@ class ClaudeBotTray : Form
         y += 15;
 
         // Status indicator
-        string statusText = !hasEnv ? L("Setup Required", "설정 필요") : botStarting ? L("Starting...", "시작 중...") : (running ? L("Running", "실행 중") : L("Stopped", "중지됨"));
+        string statusText = !hasEnv ? "Setup Required" : botStarting ? "Starting..." : (running ? "Running" : "Stopped");
         Color statusColor = !hasEnv ? Color.Orange : botStarting ? Color.Yellow : (running ? Color.LimeGreen : Color.Red);
         var statusPanel = new Panel() { Left = 25, Top = y, Width = btnWidth, Height = 50, BackColor = BgPanel };
         using (var path = RoundedRect(new Rectangle(0, 0, btnWidth, 50), 8))
@@ -1294,7 +1214,7 @@ class ClaudeBotTray : Form
 
             var usageLabel = new Label()
             {
-                Text = L("Claude Code Usage", "Claude Code 사용량"),
+                Text = "Claude Code Usage",
                 Left = 25, Top = y, Width = btnWidth, Height = 20,
                 Font = new Font(FontFamily.GenericSansSerif, 9.5f, FontStyle.Bold),
                 ForeColor = FgWhite, BackColor = Color.Transparent,
@@ -1306,9 +1226,9 @@ class ClaudeBotTray : Form
 
             // Usage bars
             string[][] usageItems = new string[][] {
-                new string[] { L("Session 5hr", "세션 5시간"), usageFiveHour.ToString("F3"), usageFiveHourReset },
-                new string[] { L("Weekly 7day", "주간 7일"), usageSevenDay.ToString("F3"), usageSevenDayReset },
-                new string[] { L("Weekly Sonnet", "주간 Sonnet"), usageSevenDaySonnet.ToString("F3"), usageSevenDaySonnetReset }
+                new string[] { "Session 5hr", usageFiveHour.ToString("F3"), usageFiveHourReset },
+                new string[] { "Weekly 7day", usageSevenDay.ToString("F3"), usageSevenDayReset },
+                new string[] { "Weekly Sonnet", usageSevenDaySonnet.ToString("F3"), usageSevenDaySonnetReset }
             };
             double[] usageValues = new double[] { usageFiveHour, usageSevenDay, usageSevenDaySonnet };
 
@@ -1375,7 +1295,7 @@ class ClaudeBotTray : Form
             }
 
             // Refresh usage button
-            var refreshUsageBtn = MakeDarkButton(L("Refresh Usage", "사용량 새로고침"), 25, y, btnWidth, 32, BgButton, FgGray);
+            var refreshUsageBtn = MakeDarkButton("Refresh Usage", 25, y, btnWidth, 32, BgButton, FgGray);
             refreshUsageBtn.Font = new Font(FontFamily.GenericSansSerif, 8.5f);
             refreshUsageBtn.Click += (s, ev) => {
                 FetchUsage();
@@ -1386,7 +1306,7 @@ class ClaudeBotTray : Form
         else
         {
             // Show fetch button when no data yet
-            var fetchUsageBtn = MakeDarkButton(L("Load Usage Info", "사용량 정보 불러오기"), 25, y, btnWidth, 36, BgButton, FgWhite);
+            var fetchUsageBtn = MakeDarkButton("Load Usage Info", 25, y, btnWidth, 36, BgButton, FgWhite);
             fetchUsageBtn.Click += (s, ev) => { FetchUsage(true); };
             controlPanel.Controls.Add(fetchUsageBtn);
             y += 46;
@@ -1397,23 +1317,23 @@ class ClaudeBotTray : Form
         {
             if (running)
             {
-                var stopBtn = MakeDarkButton(L("Stop Bot", "봇 중지"), 25, y, halfBtnWidth, 42, BtnStop, Color.FromArgb(230, 120, 120));
+                var stopBtn = MakeDarkButton("Stop Bot", 25, y, halfBtnWidth, 42, BtnStop, Color.FromArgb(230, 120, 120));
                 stopBtn.Click += (s, ev) => { StopBot(null, null); RebuildControlPanel(); };
                 controlPanel.Controls.Add(stopBtn);
 
-                var restartBtn = MakeDarkButton(L("Restart Bot", "봇 재시작"), 25 + halfBtnWidth + 10, y, halfBtnWidth, 42, BtnRestart, Color.FromArgb(220, 180, 90));
+                var restartBtn = MakeDarkButton("Restart Bot", 25 + halfBtnWidth + 10, y, halfBtnWidth, 42, BtnRestart, Color.FromArgb(220, 180, 90));
                 restartBtn.Click += (s, ev) => { RestartBot(null, null); };
                 controlPanel.Controls.Add(restartBtn);
             }
             else if (botStarting)
             {
-                var startingBtn = MakeDarkButton(L("Starting...", "시작 중..."), 25, y, btnWidth, 42, BgPanel, FgDimGray);
+                var startingBtn = MakeDarkButton("Starting...", 25, y, btnWidth, 42, BgPanel, FgDimGray);
                 startingBtn.Enabled = false;
                 controlPanel.Controls.Add(startingBtn);
             }
             else
             {
-                var startBtn = MakeDarkButton(L("Start Bot", "봇 시작"), 25, y, btnWidth, 42, BgButton, FgWhite);
+                var startBtn = MakeDarkButton("Start Bot", 25, y, btnWidth, 42, BgButton, FgWhite);
                 startBtn.Click += (s, ev) => { StartBot(null, null); };
                 controlPanel.Controls.Add(startBtn);
             }
@@ -1421,7 +1341,7 @@ class ClaudeBotTray : Form
         }
 
         // Settings button
-        var settingsBtn = MakeDarkButton(L("Settings...", "설정..."), 25, y, btnWidth, 42, BtnSettings, Color.FromArgb(100, 160, 240));
+        var settingsBtn = MakeDarkButton("Settings...", 25, y, btnWidth, 42, BtnSettings, Color.FromArgb(100, 160, 240));
         settingsBtn.Click += (s, ev) => {
             OpenSettings(null, null);
             UpdateStatus();
@@ -1433,12 +1353,12 @@ class ClaudeBotTray : Form
         if (hasEnv)
         {
             // View Log
-            var logBtn = MakeDarkButton(L("View Log", "로그 보기"), 25, y, halfBtnWidth, 42, BgButton, FgWhite);
+            var logBtn = MakeDarkButton("View Log", 25, y, halfBtnWidth, 42, BgButton, FgWhite);
             logBtn.Click += (s, ev) => { OpenLog(null, null); };
             controlPanel.Controls.Add(logBtn);
 
             // Open Folder
-            var folderBtn = MakeDarkButton(L("Open Folder", "폴더 열기"), 25 + halfBtnWidth + 10, y, halfBtnWidth, 42, BgButton, FgWhite);
+            var folderBtn = MakeDarkButton("Open Folder", 25 + halfBtnWidth + 10, y, halfBtnWidth, 42, BgButton, FgWhite);
             folderBtn.Click += (s, ev) => { OpenFolder(null, null); };
             controlPanel.Controls.Add(folderBtn);
             y += 52;
@@ -1452,7 +1372,7 @@ class ClaudeBotTray : Form
         // Auto-start checkbox
         var autoCheck = new CheckBox()
         {
-            Text = L("Auto Run on Startup", "시작 시 자동 실행"),
+            Text = "Auto Run on Startup",
             Left = 25, Top = y, Width = btnWidth, Height = 22,
             Font = new Font(FontFamily.GenericSansSerif, 9.5f),
             ForeColor = FgWhite, BackColor = Color.Transparent,
@@ -1466,7 +1386,7 @@ class ClaudeBotTray : Form
         if (updateAvailable)
         {
             var updateBtn = MakeDarkButton(
-                L("Update Available - Click to Update", "업데이트 가능 - 클릭하여 업데이트"),
+                "Update Available - Click to Update",
                 25, y, btnWidth, 42, AccentBlue, Color.White);
             updateBtn.Click += (s, ev) => { controlPanel.Close(); PerformUpdate(null, null); };
             controlPanel.Controls.Add(updateBtn);
@@ -1474,7 +1394,7 @@ class ClaudeBotTray : Form
         }
         else
         {
-            var checkUpdateBtn = MakeDarkButton(L("Check for Updates", "업데이트 확인"), 25, y, btnWidth, 42, BgButton, FgWhite);
+            var checkUpdateBtn = MakeDarkButton("Check for Updates", 25, y, btnWidth, 42, BgButton, FgWhite);
             checkUpdateBtn.Click += (s, ev) => {
                 CheckForUpdates();
                 if (updateAvailable)
@@ -1484,8 +1404,8 @@ class ClaudeBotTray : Form
                 else
                 {
                     MessageBox.Show(
-                        L("You are running the latest version.", "최신 버전을 사용 중입니다."),
-                        L("No Updates", "업데이트 없음"),
+                        "You are running the latest version.",
+                        "No Updates",
                         MessageBoxButtons.OK, MessageBoxIcon.Information);
                 }
             };
@@ -1500,8 +1420,7 @@ class ClaudeBotTray : Form
 
         // Info message
         var infoLabel = new Label() {
-            Text = L("Closing this window does not stop the bot.\nThe bot runs in the background. Check the tray icon for status.",
-                      "이 창을 닫아도 봇은 중지되지 않습니다.\n봇은 백그라운드에서 실행됩니다. 트레이 아이콘에서 상태를 확인하세요."),
+            Text = "Closing this window does not stop the bot.\nThe bot runs in the background. Check the tray icon for status.",
             Left = 25, Top = y, Width = btnWidth, Height = 40,
             ForeColor = FgDimGray, BackColor = Color.Transparent,
             Font = new Font(FontFamily.GenericSansSerif, 8.5f)
@@ -1510,7 +1429,7 @@ class ClaudeBotTray : Form
         y += 48;
 
         // Quit button
-        var quitBtn = MakeDarkButton(L("Quit Bot", "봇 종료"), 25, y, btnWidth, 42, BgButton, FgGray);
+        var quitBtn = MakeDarkButton("Quit Bot", 25, y, btnWidth, 42, BgButton, FgGray);
         quitBtn.Click += (s, ev) => { controlPanel.Close(); QuitAll(null, null); };
         controlPanel.Controls.Add(quitBtn);
         y += 52;
@@ -1536,7 +1455,7 @@ class ClaudeBotTray : Form
         // Issues link
         var issueLink = new LinkLabel()
         {
-            Text = L("Bug Report / Feature Request (GitHub Issues)", "버그 신고 / 기능 요청 (GitHub Issues)"),
+            Text = "Bug Report / Feature Request (GitHub Issues)",
             Left = 25, Top = y, Width = btnWidth, Height = 20,
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font(FontFamily.GenericSansSerif, 8.5f),
@@ -1549,8 +1468,7 @@ class ClaudeBotTray : Form
         // Star request
         var starLabel = new Label()
         {
-            Text = L("If you find this useful, please give it a Star on GitHub!",
-                      "유용하셨다면 GitHub에서 Star를 눌러주세요!"),
+            Text = "If you find this useful, please give it a Star on GitHub!",
             Left = 25, Top = y, Width = btnWidth, Height = 18,
             TextAlign = ContentAlignment.MiddleCenter,
             Font = new Font(FontFamily.GenericSansSerif, 8f),
@@ -1628,7 +1546,7 @@ class ClaudeBotTray : Form
         if (!expiresMatch.Success) return false;
         long expiresAt = long.Parse(expiresMatch.Groups[1].Value);
         long nowMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        return nowMs >= (expiresAt - 300000); // 5분 여유
+        return nowMs >= (expiresAt - 300000); // 5 min buffer
     }
 
     private void FetchUsage(bool openPageOnFail = false)
@@ -1643,7 +1561,7 @@ class ClaudeBotTray : Form
 
             string credJson = File.ReadAllText(credPath);
 
-            // 토큰 만료 시 자동 갱신
+            // Auto-refresh when token expires
             if (IsTokenExpired(credJson))
             {
                 if (RefreshOAuthToken(credPath, credJson))
@@ -1664,7 +1582,7 @@ class ClaudeBotTray : Form
                 var httpResp = wex.Response as HttpWebResponse;
                 if (httpResp != null && (httpResp.StatusCode == HttpStatusCode.Unauthorized || (int)httpResp.StatusCode == 429))
                 {
-                    // 401/429 → 토큰 갱신 후 재시도
+                    // 401/429 → refresh token and retry
                     if (RefreshOAuthToken(credPath, credJson))
                     {
                         credJson = File.ReadAllText(credPath);
@@ -1759,9 +1677,9 @@ class ClaudeBotTray : Form
         {
             var resetTime = DateTime.Parse(iso8601, null, DateTimeStyles.RoundtripKind);
             var diff = resetTime.ToUniversalTime() - DateTime.UtcNow;
-            if (diff.TotalMinutes < 1) return L("soon", "곧");
-            if (diff.TotalHours < 1) return string.Format(L("Reset in {0}m", "{0}분 후 초기화"), (int)diff.TotalMinutes);
-            return string.Format(L("Reset in {0}h", "{0}시간 후 초기화"), (int)Math.Ceiling(diff.TotalHours));
+            if (diff.TotalMinutes < 1) return "soon";
+            if (diff.TotalHours < 1) return string.Format("Reset in {0}m", (int)diff.TotalMinutes);
+            return string.Format("Reset in {0}h", (int)Math.Ceiling(diff.TotalHours));
         }
         catch { return ""; }
     }
@@ -1807,9 +1725,9 @@ class ClaudeBotTray : Form
     {
         if (usageLastFetched == null) return "";
         var ago = (int)(DateTime.Now - usageLastFetched.Value).TotalSeconds;
-        if (ago < 60) return L("Updated just now", "방금 갱신됨");
-        if (ago < 3600) return string.Format(L("Updated {0}m ago", "{0}분 전 갱신"), ago / 60);
-        return string.Format(L("Updated {0}h ago", "{0}시간 전 갱신"), ago / 3600);
+        if (ago < 60) return "Updated just now";
+        if (ago < 3600) return string.Format("Updated {0}m ago", ago / 60);
+        return string.Format("Updated {0}h ago", ago / 3600);
     }
 
     private void QuitAll(object sender, EventArgs e)

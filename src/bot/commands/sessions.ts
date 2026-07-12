@@ -5,7 +5,6 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { getChainsForChannel } from "../../db/database.js";
-import { L } from "../../utils/i18n.js";
 
 export const data = new SlashCommandBuilder()
   .setName("sessions")
@@ -47,7 +46,7 @@ export function deleteSessionFile(projectPath: string, sessionId: string): void 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
   const chains = getChainsForChannel(interaction.channelId);
   if (!chains.length) {
-    await interaction.editReply(L("No sessions in this channel yet. Mention the bot to start one.", "이 채널에는 아직 세션이 없습니다. 봇을 멘션하여 시작하세요."));
+    await interaction.editReply("No sessions in this channel yet. Mention the bot to start one.");
     return;
   }
   const options = chains.slice(0, 25).map((chain) => ({
@@ -57,12 +56,12 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
   }));
   const menu = new StringSelectMenuBuilder()
     .setCustomId("session-select")
-    .setPlaceholder(L("Select a session…", "세션을 선택하세요…"))
+    .setPlaceholder("Select a session…")
     .addOptions(options);
   await interaction.editReply({
     embeds: [{
-      title: L("Conversation sessions", "대화 세션"),
-      description: L(`Found ${chains.length} session(s) in this channel.`, `이 채널에서 ${chains.length}개의 세션을 찾았습니다.`),
+      title: "Conversation sessions",
+      description: `Found ${chains.length} session(s) in this channel.`,
       color: 0x7c3aed,
     }],
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(menu)],

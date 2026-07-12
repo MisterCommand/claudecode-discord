@@ -5,7 +5,6 @@ import {
 import { getConfig } from "../utils/config.js";
 import { handleMessage } from "./handlers/message.js";
 import { handleButtonInteraction, handleModalSubmit, handleSelectMenuInteraction } from "./handlers/interaction.js";
-import { L } from "../utils/i18n.js";
 import * as statusCmd from "./commands/status.js";
 import * as sessionsCmd from "./commands/sessions.js";
 import * as usageCmd from "./commands/usage.js";
@@ -37,7 +36,7 @@ export async function startBot(): Promise<Client> {
     } catch (error) {
       console.error("Interaction error:", error);
       if (interaction.isRepliable()) {
-        const content = L("An error occurred while processing the interaction.", "상호작용 처리 중 오류가 발생했습니다.");
+        const content = "An error occurred while processing the interaction.";
         if (interaction.replied || interaction.deferred) await interaction.followUp({ content, ephemeral: true }).catch(() => undefined);
         else await interaction.reply({ content, ephemeral: true }).catch(() => undefined);
       }
@@ -47,7 +46,7 @@ export async function startBot(): Promise<Client> {
     try { await handleMessage(message); }
     catch (error) {
       console.error("messageCreate error:", error);
-      await message.reply(L("An error occurred while processing your message.", "메시지 처리 중 오류가 발생했습니다.")).catch(() => undefined);
+      await message.reply("An error occurred while processing your message.").catch(() => undefined);
     }
   });
   client.on("error", (error) => console.error("Discord client error:", error));

@@ -2,7 +2,7 @@
 
 Complete guide for installing and running the Claude Code Discord Bot on Windows.
 
-> **[Korean version (한국어)](SETUP-WINDOWS.kr.md)** | **[macOS / Linux Setup](../SETUP.md)**
+> **[macOS / Linux Setup](../SETUP.md)**
 
 ---
 
@@ -253,7 +253,6 @@ Click the tray icon to open the **Control Panel** window:
 - **Open Folder** — open bot directory in Explorer
 - **Auto Run on Startup** — toggle auto-start on Windows login (via Registry)
 - **Update** — one-click update when new version available
-- **EN / KR** — switch language (English / Korean, persisted)
 
 ### Right-Click: Quick Menu
 

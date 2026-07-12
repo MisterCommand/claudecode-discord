@@ -1,10 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
-
-// Mock i18n to always return English strings (regardless of .tray-lang file)
-vi.mock("../utils/i18n.js", () => ({
-  L: (en: string, _kr: string) => en,
-}));
-
+import { describe, it, expect } from "vitest";
 import {
   formatStreamChunk,
   splitMessage,

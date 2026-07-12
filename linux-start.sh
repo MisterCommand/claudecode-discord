@@ -47,7 +47,7 @@ install_sys_packages() {
     fi
 }
 
-# node 경로 찾기
+# Find node binary path
 find_node() {
     # nvm
     if [ -s "$HOME/.nvm/nvm.sh" ]; then
@@ -81,7 +81,7 @@ check_native_modules() {
     fi
 }
 
-# --stop: 중지
+# --stop: stop the bot
 if [ "$1" = "--stop" ]; then
     systemctl --user stop "$SERVICE_NAME" 2>/dev/null
     echo "🔴 Bot stopped"
@@ -90,7 +90,7 @@ if [ "$1" = "--stop" ]; then
     exit 0
 fi
 
-# --regen-service: systemd service 파일만 재생성
+# --regen-service: regenerate systemd service file only
 if [ "$1" = "--regen-service" ]; then
     mkdir -p "$HOME/.config/systemd/user"
     cat > "$SERVICE_FILE" << EOF
@@ -121,7 +121,7 @@ EOF
     exit 0
 fi
 
-# --status: 상태 확인
+# --status: check status
 if [ "$1" = "--status" ]; then
     if systemctl --user is-active "$SERVICE_NAME" &>/dev/null; then
         echo "🟢 Bot running"
@@ -134,7 +134,7 @@ fi
 
 # --fg: Foreground mode
 if [ "$1" = "--fg" ]; then
-    # nvm 환경 로드 (systemd에서 실행 시 필요)
+    # Load nvm environment (required when running via systemd)
     if [ -s "$HOME/.nvm/nvm.sh" ]; then
         export NVM_DIR="$HOME/.nvm"
         . "$NVM_DIR/nvm.sh"
@@ -235,7 +235,7 @@ TRAY_SCRIPT="$SCRIPT_DIR/tray/claude_tray.py"
 HAS_GUI=false
 if [ -n "$DISPLAY" ] || [ -n "$WAYLAND_DISPLAY" ]; then
     if [ -f "$TRAY_SCRIPT" ] && command -v python3 &>/dev/null; then
-        # pystray + Pillow 설치 확인 및 자동 설치
+        # Check and auto-install pystray + Pillow
         if ! python3 -c "import pystray; from PIL import Image" 2>/dev/null; then
             echo "📦 Installing tray app dependencies..."
             pip3 install --user pystray Pillow 2>/dev/null || \

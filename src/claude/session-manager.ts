@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import path from "node:path";
 import type { Message } from "discord.js";
 import { getConfig } from "../utils/config.js";
-import { L } from "../utils/i18n.js";
 import { getChain, mapMessage, updateChainSession, updateChainStatus } from "../db/database.js";
 import type { SessionChain } from "../db/types.js";
 import {
@@ -183,7 +182,7 @@ class SessionManager {
         }
       }
 
-      const finalText = responseBuffer.trim() || L("Done.", "완료.");
+      const finalText = responseBuffer.trim() || "Done.";
       const chunks = splitMessage(finalText);
       for (let index = 0; index < chunks.length; index++) {
         const content = `${chunks[index]}\n\n-# Session ${chain.label}`;
@@ -197,7 +196,7 @@ class SessionManager {
       const stopped = this.active.get(chain.id)?.stopped;
       const raw = error instanceof Error ? error.message : "Unknown error";
       const auth = /credit balance|not authenticated|unauthorized|login required|expired|not logged in/i.test(raw)
-        ? L("\n\n🔑 Run `claude login` on the host computer, then try again.", "\n\n🔑 호스트 컴퓨터에서 `claude login`을 실행한 후 다시 시도하세요.") : "";
+        ? "\n\n🔑 Run `claude login` on the host computer, then try again." : "";
       await statusMessage.edit({ content: stopped ? `⏹️ Stopped  •  **${chain.label}**` : `❌ ${raw}${auth}\n\n-# Session ${chain.label}`, components: [] });
       updateChainStatus(chain.id, stopped ? "idle" : "offline");
     } finally {

@@ -2,7 +2,7 @@
 
 Complete guide for installing and running the Claude Code Discord Bot on macOS and Linux.
 
-> **[Korean version (한국어)](docs/SETUP.kr.md)** | **[Windows Setup](docs/SETUP-WINDOWS.md)**
+> **[Windows Setup](docs/SETUP-WINDOWS.md)**
 
 ---
 
