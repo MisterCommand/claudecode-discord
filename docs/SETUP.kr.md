@@ -122,7 +122,7 @@ npm run build   # 타입 에러 없이 빌드되는지 확인
      <img src="discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
    </p>
 
-   - **BOT PERMISSIONS**: `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands` 체크
+   - **BOT PERMISSIONS**: `Send Messages`, `Add Reactions`, `Embed Links`, `Read Message History`, `Use Slash Commands` 체크
 
    <p align="center">
      <img src="discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
@@ -144,17 +144,6 @@ npm run build   # 타입 에러 없이 빌드되는지 확인
 
    ![서버 ID 복사](copy-server-id-kr.png)
 
-## 4. 사용자 ID 확인
-
-1. 개발자 모드가 활성화된 상태에서
-2. 자신의 프로필 클릭 → **"사용자 ID 복사"**
-   - 이 값이 `ALLOWED_USER_IDS`
-   - 여러 명이면 쉼표로 구분: `123456789,987654321`
-
-   ![사용자 ID 복사](copy-user-id-kr.png)
-
----
-
 ## 5. 환경변수 설정
 
 ```bash
@@ -166,7 +155,6 @@ cp .env.example .env
 ```env
 DISCORD_BOT_TOKEN=여기에_봇_토큰_붙여넣기
 DISCORD_GUILD_ID=여기에_서버_ID_붙여넣기
-ALLOWED_USER_IDS=여기에_사용자_ID_붙여넣기
 BASE_PROJECT_DIR=/Users/yourname/projects
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
@@ -176,13 +164,10 @@ SHOW_COST=true
 |---|---|---|
 | `DISCORD_BOT_TOKEN` | 2-2단계에서 복사한 봇 토큰 | `MTQ3MDc...` |
 | `DISCORD_GUILD_ID` | 3단계에서 복사한 서버 ID | `1470730378955456578` |
-| `ALLOWED_USER_IDS` | 4단계에서 복사한 사용자 ID | `942037337519575091` |
 | `BASE_PROJECT_DIR` | 프로젝트들이 있는 상위 디렉토리 | `/Users/you/projects` |
 | `RATE_LIMIT_PER_MINUTE` | 분당 메시지 제한 (기본 10) | `10` |
 | `SHOW_COST` | 결과에 예상 API 비용 표시 (기본 true) | `false` |
 
-`BASE_PROJECT_DIR`은 `/register` 명령에서 폴더 이름만 입력할 때 기준 경로가 됩니다.
-예: `BASE_PROJECT_DIR=/Users/you/projects`이면 `/register my-app` → `/Users/you/projects/my-app`
 
 ---
 
@@ -245,11 +230,10 @@ npm start            # 빌드된 파일 실행
 
 ## 7. 사용법
 
-### 채널에 프로젝트 등록
+### 봇 사용
 
 Discord에서 원하는 채널로 이동 후:
 ```
-/register path:my-project-folder
 ```
 
 **경로 입력 방법:**
@@ -264,14 +248,13 @@ Discord에서 원하는 채널로 이동 후:
 
 ### Claude에게 메시지 보내기
 
-등록된 채널에서 일반 메시지를 보내면 Claude Code가 응답합니다.
+봇을 멘션하면 새 세션이 시작됩니다. 매핑된 메시지에 답장하면 세션이 계속되며 `w/N`으로 이전 사람 메시지 N개를 포함할 수 있습니다.
 이미지, 문서, 코드 파일 등을 첨부하면 Claude가 읽고 분석할 수 있습니다.
 
 ### 진행 중 제어
 
 - 작업 진행 중 메시지에 표시되는 **⏹️ Stop** 버튼으로 즉시 중지
 - 이전 작업 진행 중 새 메시지를 보내면 "이전 작업이 진행 중입니다" 안내
-- `/stop` 슬래시 명령어로도 중지 가능
 
 ### 도구 승인
 
@@ -283,19 +266,13 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 ### 세션 관리
 
 - `/sessions` — 기존 세션 목록에서 **재개(Resume)** 또는 **삭제(Delete)** 선택
-- `/clear-sessions` — 해당 프로젝트의 모든 세션 파일 일괄 삭제
 
 ### 슬래시 명령어
 
 | 명령어 | 설명 |
 |---|---|
-| `/register path:<폴더명>` | 현재 채널에 프로젝트 등록 |
-| `/unregister` | 프로젝트 등록 해제 |
 | `/status` | 전체 프로젝트/세션 상태 확인 |
-| `/stop` | 현재 채널의 Claude 세션 중지 |
-| `/auto-approve mode:on\|off` | 자동 승인 토글 |
 | `/sessions` | 기존 세션 목록 조회, 재개 또는 삭제 |
-| `/clear-sessions` | 해당 프로젝트의 모든 세션 일괄 삭제 |
 
 ---
 
@@ -306,7 +283,6 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 1. PC별로 Discord Developer Portal에서 **새 봇 생성** (2단계 반복)
 2. 같은 Discord 서버에 각 봇 초대
 3. 각 PC에서 이 레포를 클론하고 `.env`에 해당 PC의 봇 토큰 입력
-4. 각 봇은 서로 다른 채널에 `/register`로 프로젝트 등록
 
 같은 길드에 여러 봇이 있어도 슬래시 명령어 실행 시 봇 이름이 표시되므로 구분 가능합니다.
 
@@ -315,7 +291,6 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 ## 9. 보안
 
 - Discord 서버는 기본적으로 **비공개**입니다 (초대 링크 없이는 접근 불가)
-- `ALLOWED_USER_IDS`에 등록된 사용자만 봇과 대화할 수 있습니다
 - 봇 토큰은 절대 외부에 노출하지 마세요. 노출된 경우 Discord Developer Portal에서 즉시 **Reset Token**
 - 파일 첨부: 실행 파일(.exe, .bat 등) 차단, 25MB 크기 제한
 
@@ -325,7 +300,6 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 
 ### 봇이 메시지에 반응하지 않음
 - MESSAGE CONTENT INTENT가 활성화되어 있는지 확인 (2-2단계)
-- `ALLOWED_USER_IDS`에 본인 ID가 포함되어 있는지 확인
 
 ### "Unknown interaction" 에러
 - 봇이 3초 내에 응답하지 못한 경우 발생 → 보통 자동으로 해결됨
@@ -336,10 +310,7 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 
 ### 세션 이어하기
 - 봇을 재시작해도 이전 세션을 이어갈 수 있습니다 (session ID가 DB에 저장됨)
-- `/stop` 후에도 세션 기록은 유지됩니다 (다음 메시지 시 자동 재개)
 - `/sessions`로 이전 세션 목록을 보고 재개 또는 삭제할 수 있습니다
-- `/clear-sessions`로 모든 세션을 일괄 삭제할 수 있습니다
-- `/unregister`를 하면 DB의 세션 매핑이 삭제됩니다
 
 ### 수동 업데이트
 트레이 업데이트 버튼이 작동하지 않을 경우, 봇 폴더에서 터미널을 열고 아래 명령어를 실행하세요:

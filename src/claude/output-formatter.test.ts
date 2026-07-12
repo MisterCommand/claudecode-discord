@@ -151,13 +151,12 @@ describe("createToolApprovalEmbed", () => {
     expect(descField?.value).toBe("List files");
   });
 
-  it("creates three buttons: approve, deny, approve-all", () => {
+  it("creates approve and deny buttons", () => {
     const { row: approvalRow } = createToolApprovalEmbed("Write", { file_path: "/a" }, "req-789");
     const buttons = approvalRow.components;
-    expect(buttons).toHaveLength(3);
+    expect(buttons).toHaveLength(2);
     expect(buttons[0].data).toHaveProperty("custom_id", "approve:req-789");
     expect(buttons[1].data).toHaveProperty("custom_id", "deny:req-789");
-    expect(buttons[2].data).toHaveProperty("custom_id", "approve-all:req-789");
   });
 
   it("skips Input field for empty input on generic tool", () => {

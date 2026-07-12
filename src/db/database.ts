@@ -1,117 +1,72 @@
 import Database from "better-sqlite3";
 import path from "node:path";
-import type { Project, Session, SessionStatus } from "./types.js";
+import type { MessageMapping, SessionChain, SessionStatus } from "./types.js";
 
 const DB_PATH = path.join(process.cwd(), "data.db");
-
+const SCHEMA_VERSION = 3;
 let db: Database.Database;
 
 export function initDatabase(): void {
   db = new Database(DB_PATH);
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
-
+  const version = db.pragma("user_version", { simple: true }) as number;
+  if (version < SCHEMA_VERSION) {
+    db.exec(`DROP TABLE IF EXISTS message_mappings; DROP TABLE IF EXISTS session_chains; DROP TABLE IF EXISTS sessions; DROP TABLE IF EXISTS projects;`);
+  }
   db.exec(`
-    CREATE TABLE IF NOT EXISTS projects (
-      channel_id TEXT PRIMARY KEY,
-      project_path TEXT NOT NULL,
-      guild_id TEXT NOT NULL,
-      auto_approve INTEGER DEFAULT 0,
+    CREATE TABLE IF NOT EXISTS session_chains (
+      id TEXT PRIMARY KEY, label TEXT NOT NULL UNIQUE, guild_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL, session_id TEXT, status TEXT NOT NULL DEFAULT 'idle',
+      last_activity TEXT DEFAULT (datetime('now')), created_at TEXT DEFAULT (datetime('now')), deleted_at TEXT
+    );
+    CREATE TABLE IF NOT EXISTS message_mappings (
+      message_id TEXT PRIMARY KEY,
+      chain_id TEXT NOT NULL REFERENCES session_chains(id) ON DELETE CASCADE,
       created_at TEXT DEFAULT (datetime('now'))
     );
-
-    CREATE TABLE IF NOT EXISTS sessions (
-      id TEXT PRIMARY KEY,
-      channel_id TEXT REFERENCES projects(channel_id) ON DELETE CASCADE,
-      session_id TEXT,
-      status TEXT DEFAULT 'offline',
-      last_activity TEXT,
-      created_at TEXT DEFAULT (datetime('now'))
-    );
+    CREATE INDEX IF NOT EXISTS idx_chains_channel ON session_chains(channel_id, last_activity DESC);
+    CREATE INDEX IF NOT EXISTS idx_message_chain ON message_mappings(chain_id);
+    PRAGMA user_version = ${SCHEMA_VERSION};
   `);
 }
 
-export function getDb(): Database.Database {
-  return db;
+export function getDb(): Database.Database { return db; }
+export function createChain(chain: Omit<SessionChain, "created_at" | "last_activity" | "deleted_at">): void {
+  db.prepare(`INSERT INTO session_chains (id,label,guild_id,channel_id,session_id,status) VALUES (?,?,?,?,?,?)`)
+    .run(chain.id, chain.label, chain.guild_id, chain.channel_id, chain.session_id, chain.status);
+}
+export function getChain(id: string): SessionChain | undefined {
+  return db.prepare("SELECT * FROM session_chains WHERE id = ?").get(id) as SessionChain | undefined;
+}
+export function getChainByMessage(messageId: string): SessionChain | undefined {
+  return db.prepare(`SELECT c.* FROM session_chains c JOIN message_mappings m ON m.chain_id=c.id WHERE m.message_id=?`)
+    .get(messageId) as SessionChain | undefined;
+}
+export function getChainsForChannel(channelId: string): SessionChain[] {
+  return db.prepare(`SELECT * FROM session_chains WHERE channel_id=? AND deleted_at IS NULL ORDER BY datetime(last_activity) DESC, datetime(created_at) DESC`)
+    .all(channelId) as SessionChain[];
+}
+export function mapMessage(messageId: string, chainId: string): void {
+  db.prepare(`INSERT INTO message_mappings (message_id,chain_id) VALUES (?,?) ON CONFLICT(message_id) DO UPDATE SET chain_id=excluded.chain_id`)
+    .run(messageId, chainId);
+}
+export function getMessageMapping(messageId: string): MessageMapping | undefined {
+  return db.prepare("SELECT * FROM message_mappings WHERE message_id=?").get(messageId) as MessageMapping | undefined;
+}
+export function updateChainSession(chainId: string, sessionId: string | null): void {
+  db.prepare(`UPDATE session_chains SET session_id=?,last_activity=datetime('now') WHERE id=?`).run(sessionId, chainId);
+}
+export function updateChainStatus(chainId: string, status: SessionStatus): void {
+  db.prepare(`UPDATE session_chains SET status=?,last_activity=datetime('now') WHERE id=?`).run(status, chainId);
+}
+export function deleteChain(chainId: string): boolean {
+  return db.prepare("DELETE FROM session_chains WHERE id=?").run(chainId).changes > 0;
+}
+export function markChainDeleted(chainId: string): void {
+  db.prepare(`UPDATE session_chains SET session_id=NULL,status='offline',deleted_at=datetime('now'),last_activity=datetime('now') WHERE id=?`).run(chainId);
 }
 
-// Project queries
-export function registerProject(
-  channelId: string,
-  projectPath: string,
-  guildId: string,
-): void {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO projects (channel_id, project_path, guild_id)
-    VALUES (?, ?, ?)
-  `);
-  stmt.run(channelId, projectPath, guildId);
-}
-
-export function unregisterProject(channelId: string): void {
-  db.prepare("DELETE FROM sessions WHERE channel_id = ?").run(channelId);
-  db.prepare("DELETE FROM projects WHERE channel_id = ?").run(channelId);
-}
-
-export function getProject(channelId: string): Project | undefined {
-  return db
-    .prepare("SELECT * FROM projects WHERE channel_id = ?")
-    .get(channelId) as Project | undefined;
-}
-
-export function getAllProjects(guildId: string): Project[] {
-  return db
-    .prepare("SELECT * FROM projects WHERE guild_id = ?")
-    .all(guildId) as Project[];
-}
-
-export function setAutoApprove(
-  channelId: string,
-  autoApprove: boolean,
-): void {
-  db.prepare("UPDATE projects SET auto_approve = ? WHERE channel_id = ?").run(
-    autoApprove ? 1 : 0,
-    channelId,
-  );
-}
-
-// Session queries
-export function upsertSession(
-  id: string,
-  channelId: string,
-  sessionId: string | null,
-  status: SessionStatus,
-): void {
-  const stmt = db.prepare(`
-    INSERT OR REPLACE INTO sessions (id, channel_id, session_id, status, last_activity)
-    VALUES (?, ?, ?, ?, datetime('now'))
-  `);
-  stmt.run(id, channelId, sessionId, status);
-}
-
-export function getSession(channelId: string): Session | undefined {
-  return db
-    .prepare(
-      "SELECT * FROM sessions WHERE channel_id = ? ORDER BY created_at DESC LIMIT 1",
-    )
-    .get(channelId) as Session | undefined;
-}
-
-export function updateSessionStatus(
-  channelId: string,
-  status: SessionStatus,
-): void {
-  db.prepare(
-    "UPDATE sessions SET status = ?, last_activity = datetime('now') WHERE channel_id = ?",
-  ).run(status, channelId);
-}
-
-export function getAllSessions(guildId: string): (Session & { project_path: string })[] {
-  return db
-    .prepare(`
-      SELECT s.*, p.project_path FROM sessions s
-      JOIN projects p ON s.channel_id = p.channel_id
-      WHERE p.guild_id = ?
-    `)
-    .all(guildId) as (Session & { project_path: string })[];
+export function replaceMissingSession(chainId: string): void {
+  db.prepare(`UPDATE session_chains SET session_id=NULL,status='idle',deleted_at=NULL,last_activity=datetime('now') WHERE id=?`).run(chainId);
 }

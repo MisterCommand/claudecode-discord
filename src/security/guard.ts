@@ -13,11 +13,6 @@ setInterval(() => {
   }
 }, 300_000); // every 5 minutes
 
-export function isAllowedUser(userId: string): boolean {
-  const config = getConfig();
-  return config.ALLOWED_USER_IDS.includes(userId);
-}
-
 export function checkRateLimit(userId: string): boolean {
   const config = getConfig();
   const now = Date.now();

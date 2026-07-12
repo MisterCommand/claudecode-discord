@@ -1,57 +1,15 @@
-import {
-  ChatInputCommandInteraction,
-  SlashCommandBuilder,
-  EmbedBuilder,
-} from "discord.js";
-import { getAllProjects, getSession } from "../../db/database.js";
+import { ChatInputCommandInteraction, EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import { getChainsForChannel } from "../../db/database.js";
 import { L } from "../../utils/i18n.js";
 
-const STATUS_EMOJI: Record<string, string> = {
-  online: "🟢",
-  waiting: "🟡",
-  idle: "⚪",
-  offline: "🔴",
-};
-
-export const data = new SlashCommandBuilder()
-  .setName("status")
-  .setDescription("Show status of all registered project sessions");
-
-export async function execute(
-  interaction: ChatInputCommandInteraction,
-): Promise<void> {
-  const guildId = interaction.guildId!;
-  const projects = getAllProjects(guildId);
-
-  if (projects.length === 0) {
-    await interaction.editReply({
-      content: L("No projects registered. Use `/register` in a channel first.", "등록된 프로젝트가 없습니다. 먼저 채널에서 `/register`를 사용하세요."),
-    });
-    return;
+const emoji: Record<string, string> = { online: "🟢", waiting: "🟡", idle: "⚪", offline: "🔴" };
+export const data = new SlashCommandBuilder().setName("status").setDescription("Show session status in this channel or thread");
+export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const chains = getChainsForChannel(interaction.channelId);
+  if (!chains.length) { await interaction.editReply(L("No sessions in this channel.", "이 채널에 세션이 없습니다.")); return; }
+  const embed = new EmbedBuilder().setTitle(L("Session status", "세션 상태")).setColor(0x7c3aed).setTimestamp();
+  for (const chain of chains.slice(0, 25)) {
+    embed.addFields({ name: `${emoji[chain.status] ?? "⚪"} ${chain.label}`, value: `${chain.status} • ${chain.last_activity ?? chain.created_at}` });
   }
-
-  const embed = new EmbedBuilder()
-    .setTitle(L("Claude Code Sessions", "Claude Code 세션"))
-    .setColor(0x7c3aed)
-    .setTimestamp();
-
-  for (const project of projects) {
-    const session = getSession(project.channel_id);
-    const status = session?.status ?? "offline";
-    const emoji = STATUS_EMOJI[status] ?? "🔴";
-    const lastActivity = session?.last_activity ?? "never";
-
-    embed.addFields({
-      name: `${emoji} <#${project.channel_id}>`,
-      value: [
-        `\`${project.project_path}\``,
-        `${L("Status", "상태")}: **${status}**`,
-        `${L("Auto-approve", "자동 승인")}: ${project.auto_approve ? L("On", "켜짐") : L("Off", "꺼짐")}`,
-        `${L("Last activity", "마지막 활동")}: ${lastActivity}`,
-      ].join("\n"),
-      inline: false,
-    });
-  }
-
   await interaction.editReply({ embeds: [embed] });
 }

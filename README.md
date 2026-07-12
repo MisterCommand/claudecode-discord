@@ -10,7 +10,7 @@ Control Claude Code from your phone — a multi-machine agent hub via Discord.
 **No API key needed — works with your existing Claude Pro or Max subscription.**
 
 <p align="center">
-  <img src="docs/demo.gif" alt="Demo — register a project and code with Claude from Discord" width="300">
+  <img src="docs/demo.gif" alt="Demo — start and continue Claude sessions from Discord" width="300">
 </p>
 
 > **[Korean documentation (한국어)](docs/README.kr.md)**
@@ -50,7 +50,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 
 - **Already on your phone.** No new app to install, no web UI to bookmark. Open Discord and go.
 - **Push notifications for free.** Get alerted instantly when Claude needs approval or finishes a task — even with the phone locked.
-- **Channels = workspaces.** Each channel maps to a project directory. The sidebar becomes a real-time dashboard of all your projects.
+- **Conversation chains = sessions.** Mention the bot for a new session, or reply anywhere in an existing chain to continue it.
 - **Rich UI out of the box.** Buttons, select menus, embeds, file uploads — Discord provides the interactive components, so the bot doesn't need its own frontend.
 - **Team-ready by default.** Invite teammates to your server. They can watch Claude work, approve tool calls, or queue tasks — no extra auth layer needed.
 - **Cross-platform.** Windows, macOS, Linux, iOS, Android, web browser — Discord runs everywhere.
@@ -59,14 +59,14 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 
 - 💰 **No API key** — runs on Claude Code CLI with your Pro or Max subscription
 - 📱 Remote control Claude Code from Discord (desktop/web/mobile)
-- 🔀 Independent sessions per channel (project directory mapping)
+- 🔀 Multiple independent conversation-chain sessions in every channel or thread
 - ✅ Tool use approve/deny via Discord button UI
 - ❓ Interactive question UI (selectable options + custom text input)
-- ⏹️ Stop button for instant cancellation during progress, message queue for sequential tasks
+- ⏹️ Session-specific Stop button and per-chain queueing
 - 📎 File attachments support (images, documents, code files)
 - 🔄 Session resume/delete/new (persist across bot restarts, last conversation preview)
 - ⏱️ Real-time progress display (tool usage, elapsed time)
-- 🔒 User whitelist, rate limiting, path security, duplicate instance prevention
+- 🔒 Per-user rate limiting, fixed workspace, attachment filtering, duplicate instance prevention
 - 📊 **Claude Code usage dashboard** in control panel — Session (5hr), Weekly (7day), Weekly Sonnet with progress bars, auto-refresh, click to open usage page
 
 ## Tech Stack
@@ -118,13 +118,13 @@ claudecode-discord/
 │   ├── index.ts                # Entry point
 │   ├── bot/
 │   │   ├── client.ts           # Discord bot init & events
-│   │   ├── commands/           # Slash commands (10)
+│   │   ├── commands/           # /sessions, /status, /usage
 │   │   └── handlers/           # Message & interaction handlers
 │   ├── claude/
 │   │   ├── session-manager.ts  # Session lifecycle
 │   │   └── output-formatter.ts # Discord output formatting
 │   ├── db/                     # SQLite (better-sqlite3)
-│   ├── security/               # Auth, rate limit, path validation
+│   ├── security/               # Rate limiting and path validation
 │   └── utils/                  # Config (zod)
 ├── SETUP.md                    # macOS/Linux setup guide
 ├── docs/                       # Translations, screenshots
@@ -135,35 +135,30 @@ claudecode-discord/
 
 ## Usage
 
-| Command | Description | Example |
-|---------|-------------|---------|
-| `/register <folder>` | Link current channel to a project | `/register my-project` |
-| `/unregister` | Unlink channel | |
-| `/status` | Check all session statuses | |
-| `/stop` | Stop current channel's session | |
-| `/auto-approve on\|off` | Toggle auto-approval | `/auto-approve on` |
-| `/sessions` | List sessions to resume or delete | |
-| `/last` | Show the last Claude response from current session | |
-| `/usage` | Show Claude Code usage (Session 5hr / Weekly / Sonnet) | |
-| `/queue list` | View queued messages (cancel individually or all) | |
-| `/queue clear` | Cancel all queued messages | |
-| `/clear-sessions` | Delete all session files for the project | |
+Mention the bot in any server channel it can access to start a new session:
 
-The `/register` command shows an **autocomplete dropdown** listing subdirectories under `BASE_PROJECT_DIR` — just start typing to filter and select.
-The first option `.` registers the base directory itself. You can also type a custom path; absolute paths work too.
+```text
+@Claude investigate this test failure
+```
 
-> **Why per-directory?** Claude Code manages sessions per project directory — each directory has its own conversation history, `CLAUDE.md` context, and tool permissions. By mapping one Discord channel to one directory, each channel gets an independent Claude workspace.
+Reply to any user or bot message already mapped to that conversation to continue its latest session state. To include preceding human conversation explicitly, add `w/N` anywhere in the message (for example, `@Claude w/20 summarize and act`). There is no automatic ambient context.
 
-Send a **regular message** in a registered channel and Claude will respond.
-Attach images, documents, or code files and Claude can read and analyze them.
+Replying to an otherwise unrelated human message while mentioning the bot starts a new session and includes only that referenced message. Text, files, and images on the triggering message are passed through; `w/N` context includes all images from the selected messages.
+
+| Command | Description |
+|---------|-------------|
+| `/status` | Show sessions in the current channel or thread |
+| `/sessions` | Inspect or delete sessions in the current channel or thread |
+| `/usage` | Show Claude Code usage |
+
+During a turn, one Discord reply is edited in place with progress and streaming output. Approval and question prompts appear separately and are deleted after resolution. On success, the progress reply becomes the final answer; oversized answers continue in mapped follow-up messages.
 
 ### In-Progress Controls
 
-- **⏹️ Stop** button on progress messages for instant cancellation
-- Sending a new message while busy offers **message queue** — auto-processes after current task completes
-- `/queue list` to view queued messages — cancel individually (❌) or all at once
-- `/stop` slash command also available
-
+- **Stop** cancels only the session shown on that progress message.
+- Different chains can run concurrently in the same channel.
+- Messages targeting a busy chain are queued for that chain.
+- Any user with channel access can continue sessions and use approval, question, stop, and deletion controls.
 <details>
 <summary><strong>Architecture</strong></summary>
 
@@ -173,10 +168,10 @@ Attach images, documents, or code files and Claude can read and analyze them.
                      [SQLite DB]
 ```
 
-- Independent sessions per channel (project directory mapping)
+- Independent sessions per Discord conversation chain
 - Claude Agent SDK runs Claude Code as subprocess (shares existing auth)
-- Tool use approval via Discord buttons (auto-approve mode supported)
-- Streaming responses edited every 1.5s into Discord messages
+- Write and shell tools require Discord approval
+- A single progress reply is edited during streaming and becomes the final answer
 - Heartbeat progress display every 15s until text output begins
 - Markdown code blocks preserved across message splits
 
@@ -201,9 +196,9 @@ The bot runs entirely on your own PC/server. No external servers involved, and n
 
 ### Access Control
 
-- `ALLOWED_USER_IDS` whitelist-based authentication — all messages and commands from unregistered users are ignored
-- Discord servers are private by default (no access without invite link)
-- Per-minute request rate limiting
+- Access follows Discord channel and thread permissions
+- Per-user request rate limiting remains enabled
+- All agent work is fixed to BASE_PROJECT_DIR`r
 
 ### Execution Protection
 
@@ -214,7 +209,7 @@ The bot runs entirely on your own PC/server. No external servers involved, and n
 ### Precautions
 
 - The `.env` file contains your bot token — **never share it publicly.** If compromised, immediately Reset Token in Discord Developer Portal
-- `auto-approve` mode is convenient but may allow Claude to perform unintended actions — use only on trusted projects
+- Every write or shell action requires explicit approval from a user who can access the channel
 
 ## Quick Start by Platform
 

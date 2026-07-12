@@ -122,7 +122,7 @@ npm run build   # Check for type errors
      <img src="docs/discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
    </p>
 
-   - **BOT PERMISSIONS**: Check `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands`
+   - **BOT PERMISSIONS**: Check `Send Messages`, `Add Reactions`, `Embed Links`, `Read Message History`, `Use Slash Commands`
 
    <p align="center">
      <img src="docs/discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
@@ -142,17 +142,6 @@ npm run build   # Check for type errors
 
    ![Copy Server ID](docs/copy-server-id-en.png)
 
-## 4. Get User ID
-
-1. With Developer Mode enabled
-2. Click your profile → **"Copy User ID"**
-   - This is your `ALLOWED_USER_IDS`
-   - Multiple users: comma-separated: `123456789,987654321`
-
-   ![Copy User ID](docs/copy-user-id-en.png)
-
----
-
 ## 5. Environment Variables
 
 ```bash
@@ -164,7 +153,6 @@ Edit `.env` with your values:
 ```env
 DISCORD_BOT_TOKEN=your_bot_token_here
 DISCORD_GUILD_ID=your_server_id_here
-ALLOWED_USER_IDS=your_user_id_here
 BASE_PROJECT_DIR=/Users/yourname/projects
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
@@ -174,13 +162,10 @@ SHOW_COST=true
 |----------|-------------|---------|
 | `DISCORD_BOT_TOKEN` | Bot token from step 2-2 | `MTQ3MDc...` |
 | `DISCORD_GUILD_ID` | Server ID from step 3 | `1470730378955456578` |
-| `ALLOWED_USER_IDS` | User ID from step 4 | `942037337519575091` |
 | `BASE_PROJECT_DIR` | Parent directory of your projects | `/Users/you/projects` |
 | `RATE_LIMIT_PER_MINUTE` | Message rate limit (default 10) | `10` |
 | `SHOW_COST` | Show estimated API cost in results (default true) | `false` |
 
-`BASE_PROJECT_DIR` is the base path when using folder names in `/register`.
-Example: If `BASE_PROJECT_DIR=/Users/you/projects`, then `/register my-app` → `/Users/you/projects/my-app`
 
 ---
 
@@ -247,7 +232,6 @@ npm start            # Run built files
 
 In Discord, go to the desired channel:
 ```
-/register path:my-project-folder
 ```
 
 **How path resolution works:**
@@ -262,14 +246,13 @@ In Discord, go to the desired channel:
 
 ### Send Messages to Claude
 
-Send a regular message in a registered channel and Claude Code will respond.
+Mention the bot to start a new session. Reply to a mapped conversation message to continue it. Add `w/N` anywhere to include N preceding human messages.
 Attach images, documents, or code files and Claude can read and analyze them.
 
 ### In-Progress Controls
 
 - **⏹️ Stop** button on progress messages for instant cancellation
 - Sending a new message while busy shows "previous task in progress" notice
-- `/stop` slash command also available
 
 ### Tool Approval
 
@@ -281,19 +264,13 @@ When Claude requests file edits, creation, or command execution, buttons appear:
 ### Session Management
 
 - `/sessions` — Browse existing sessions and choose to **Resume** or **Delete**
-- `/clear-sessions` — Delete all session files for the current project
 
 ### Slash Commands
 
 | Command | Description |
 |---------|-------------|
-| `/register path:<folder>` | Register a project to this channel |
-| `/unregister` | Unregister the project |
 | `/status` | Check all project/session statuses |
-| `/stop` | Stop the Claude session in this channel |
-| `/auto-approve mode:on\|off` | Toggle auto-approval |
 | `/sessions` | List sessions to resume or delete |
-| `/clear-sessions` | Delete all sessions for the project |
 | `/usage` | Show Claude Code usage (Session 5hr / Weekly / Sonnet) |
 
 ---
@@ -305,7 +282,6 @@ Create a separate Discord bot for each PC and invite them to the same Discord se
 1. Create a **new bot** per PC in Discord Developer Portal (repeat step 2)
 2. Invite each bot to the same Discord server
 3. Clone this repo on each PC and set the PC's bot token in `.env`
-4. Each bot registers projects to different channels via `/register`
 
 Multiple bots in the same guild are distinguishable by bot name when running slash commands.
 
@@ -314,7 +290,6 @@ Multiple bots in the same guild are distinguishable by bot name when running sla
 ## 9. Security
 
 - Discord servers are **private** by default (no access without invite link)
-- Only users in `ALLOWED_USER_IDS` can interact with the bot
 - Never expose your bot token. If compromised, immediately **Reset Token** in Discord Developer Portal
 - File attachments: executable files (.exe, .bat, etc.) blocked, 25MB size limit
 
@@ -324,7 +299,6 @@ Multiple bots in the same guild are distinguishable by bot name when running sla
 
 ### Bot doesn't respond to messages
 - Verify MESSAGE CONTENT INTENT is enabled (step 2-2)
-- Check that your ID is in `ALLOWED_USER_IDS`
 
 ### "Unknown interaction" error
 - Occurs when bot can't respond within 3 seconds → usually resolves automatically
@@ -335,10 +309,7 @@ Multiple bots in the same guild are distinguishable by bot name when running sla
 
 ### Resuming sessions
 - Sessions persist across bot restarts (session ID stored in DB)
-- Session records are kept even after `/stop` (auto-resumes on next message)
 - Use `/sessions` to browse and resume or delete previous sessions
-- Use `/clear-sessions` to delete all sessions at once
-- `/unregister` removes the DB session mapping
 
 ### Manual update
 If the tray update button doesn't work, open a terminal in the bot folder and run:

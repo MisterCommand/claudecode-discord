@@ -62,11 +62,11 @@ export function splitMessage(text: string): string[] {
 }
 
 export function createStopButton(
-  channelId: string,
+  chainId: string,
 ): ActionRowBuilder<ButtonBuilder> {
   return new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
-      .setCustomId(`stop:${channelId}`)
+      .setCustomId(`stop:${chainId}`)
       .setLabel(L("Stop", "중지"))
       .setStyle(ButtonStyle.Danger)
       .setEmoji("⏹️"),
@@ -142,11 +142,6 @@ export function createToolApprovalEmbed(
       .setLabel(L("Deny", "거부"))
       .setStyle(ButtonStyle.Danger)
       .setEmoji("❌"),
-    new ButtonBuilder()
-      .setCustomId(`approve-all:${requestId}`)
-      .setLabel(L("Auto-approve All", "모두 자동 승인"))
-      .setStyle(ButtonStyle.Secondary)
-      .setEmoji("⚡"),
   );
 
   return { embed, row };

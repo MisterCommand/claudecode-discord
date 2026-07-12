@@ -5,35 +5,13 @@ vi.mock("../utils/config.js", () => ({
   getConfig: vi.fn(() => ({
     DISCORD_BOT_TOKEN: "t",
     DISCORD_GUILD_ID: "g",
-    ALLOWED_USER_IDS: ["user1", "user2"],
     BASE_PROJECT_DIR: "/projects",
     RATE_LIMIT_PER_MINUTE: 3,
     SHOW_COST: true,
   })),
 }));
 
-import { isAllowedUser, checkRateLimit, validateProjectPath } from "./guard.js";
-
-// ─── isAllowedUser ───
-
-describe("isAllowedUser", () => {
-  it("returns true for whitelisted user", () => {
-    expect(isAllowedUser("user1")).toBe(true);
-    expect(isAllowedUser("user2")).toBe(true);
-  });
-
-  it("returns false for non-whitelisted user", () => {
-    expect(isAllowedUser("unknown")).toBe(false);
-  });
-
-  it("returns false for empty string", () => {
-    expect(isAllowedUser("")).toBe(false);
-  });
-
-  it("is case-sensitive", () => {
-    expect(isAllowedUser("User1")).toBe(false);
-  });
-});
+import { checkRateLimit, validateProjectPath } from "./guard.js";
 
 // ─── checkRateLimit ───
 

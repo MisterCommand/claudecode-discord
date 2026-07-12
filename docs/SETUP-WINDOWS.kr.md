@@ -148,7 +148,7 @@ npm run build
      <img src="discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
    </p>
 
-   - **BOT PERMISSIONS**: `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands` 체크
+   - **BOT PERMISSIONS**: `Send Messages`, `Add Reactions`, `Embed Links`, `Read Message History`, `Use Slash Commands` 체크
 
    <p align="center">
      <img src="discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
@@ -169,17 +169,6 @@ npm run build
 
    ![서버 ID 복사](copy-server-id-kr.png)
 
-## 4. 사용자 ID 확인
-
-1. 개발자 모드가 활성화된 상태에서
-2. 자신의 프로필 클릭 → **"사용자 ID 복사"**
-   - 이 값이 `ALLOWED_USER_IDS`
-   - 여러 명이면 쉼표로 구분: `123456789,987654321`
-
-   ![사용자 ID 복사](copy-user-id-kr.png)
-
----
-
 ## 5. 설정
 
 ### 방법 A: GUI 설정 (권장)
@@ -193,7 +182,6 @@ npm run build
 항목을 채워주세요:
 - **Discord Bot Token** — 2-2단계에서 복사한 토큰
 - **Discord Guild ID** — 3단계에서 복사한 서버 ID
-- **Allowed User IDs** — 4단계에서 복사한 사용자 ID
 - **Base Project Directory** — 프로젝트들이 있는 상위 폴더 (Browse 버튼 사용)
 - **Rate Limit Per Minute** — 기본 10
 - **Show Cost** — `true` 또는 `false` (Max 플랜 사용자: `false` 권장)
@@ -212,7 +200,6 @@ notepad .env
 ```env
 DISCORD_BOT_TOKEN=여기에_봇_토큰_붙여넣기
 DISCORD_GUILD_ID=여기에_서버_ID_붙여넣기
-ALLOWED_USER_IDS=여기에_사용자_ID_붙여넣기
 BASE_PROJECT_DIR=C:\Users\yourname\projects
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
@@ -222,7 +209,6 @@ SHOW_COST=true
 |---|---|---|
 | `DISCORD_BOT_TOKEN` | 2-2단계에서 복사한 봇 토큰 | `MTQ3MDc...` |
 | `DISCORD_GUILD_ID` | 3단계에서 복사한 서버 ID | `1470730378955456578` |
-| `ALLOWED_USER_IDS` | 4단계에서 복사한 사용자 ID | `942037337519575091` |
 | `BASE_PROJECT_DIR` | 프로젝트들이 있는 상위 디렉토리 | `C:\Users\you\projects` |
 | `RATE_LIMIT_PER_MINUTE` | 분당 메시지 제한 (기본 10) | `10` |
 | `SHOW_COST` | 결과에 예상 API 비용 표시 (기본 true) | `false` |
@@ -292,11 +278,10 @@ win-start.bat --fg     :: 포그라운드 모드 (디버깅용)
 
 ## 8. 사용법
 
-### 채널에 프로젝트 등록
+### 봇 사용
 
 Discord에서 원하는 채널로 이동 후:
 ```
-/register path:my-project-folder
 ```
 
 **경로 입력 방법:**
@@ -309,7 +294,7 @@ Discord에서 원하는 채널로 이동 후:
 
 ### Claude에게 메시지 보내기
 
-등록된 채널에서 일반 메시지를 보내면 Claude Code가 응답합니다.
+봇을 멘션하면 새 세션이 시작됩니다. 매핑된 메시지에 답장하면 세션이 계속되며 `w/N`으로 이전 사람 메시지 N개를 포함할 수 있습니다.
 이미지, 문서, 코드 파일 등을 첨부하면 Claude가 읽고 분석할 수 있습니다.
 
 ### 도구 승인
@@ -322,19 +307,13 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 ### 세션 관리
 
 - `/sessions` — 기존 세션 목록에서 **재개(Resume)** 또는 **삭제(Delete)** 선택
-- `/clear-sessions` — 해당 프로젝트의 모든 세션 파일 일괄 삭제
 
 ### 슬래시 명령어
 
 | 명령어 | 설명 |
 |---|---|
-| `/register path:<폴더명>` | 현재 채널에 프로젝트 등록 |
-| `/unregister` | 프로젝트 등록 해제 |
 | `/status` | 전체 프로젝트/세션 상태 확인 |
-| `/stop` | 현재 채널의 Claude 세션 중지 |
-| `/auto-approve mode:on\|off` | 자동 승인 토글 |
 | `/sessions` | 기존 세션 목록 조회, 재개 또는 삭제 |
-| `/clear-sessions` | 해당 프로젝트의 모든 세션 일괄 삭제 |
 
 ---
 
@@ -345,14 +324,12 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 1. PC별로 Discord Developer Portal에서 **새 봇 생성** (2단계 반복)
 2. 같은 Discord 서버에 각 봇 초대
 3. 각 PC에서 이 레포를 클론하고 해당 PC의 봇 토큰으로 설정
-4. 각 봇은 서로 다른 채널에 `/register`로 프로젝트 등록
 
 ---
 
 ## 10. 보안
 
 - Discord 서버는 기본적으로 **비공개**입니다 (초대 링크 없이는 접근 불가)
-- `ALLOWED_USER_IDS`에 등록된 사용자만 봇과 대화할 수 있습니다
 - 봇 토큰은 절대 외부에 노출하지 마세요. 노출된 경우 Discord Developer Portal에서 즉시 **Reset Token**
 - 파일 첨부: 실행 파일(.exe, .bat 등) 차단, 25MB 크기 제한
 
@@ -362,7 +339,6 @@ Claude가 파일 수정/생성/명령 실행 등을 요청하면 버튼이 표�
 
 ### 봇이 메시지에 반응하지 않음
 - MESSAGE CONTENT INTENT가 활성화되어 있는지 확인 (2-2단계)
-- `ALLOWED_USER_IDS`에 본인 ID가 포함되어 있는지 확인
 
 ### 트레이 앱이 안 뜸
 - `tray\ClaudeBotTray.exe` 파일이 있는지 확인. 없으면 삭제 후 `win-start.bat` 다시 실행하면 자동 컴파일

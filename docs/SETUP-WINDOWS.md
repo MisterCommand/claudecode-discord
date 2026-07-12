@@ -148,7 +148,7 @@ npm run build
      <img src="discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
    </p>
 
-   - **BOT PERMISSIONS**: Check `Send Messages`, `Embed Links`, `Read Message History`, `Use Slash Commands`
+   - **BOT PERMISSIONS**: Check `Send Messages`, `Add Reactions`, `Embed Links`, `Read Message History`, `Use Slash Commands`
 
    <p align="center">
      <img src="discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
@@ -168,17 +168,6 @@ npm run build
 
    ![Copy Server ID](copy-server-id-en.png)
 
-## 4. Get User ID
-
-1. With Developer Mode enabled
-2. Click your profile → **"Copy User ID"**
-   - This is your `ALLOWED_USER_IDS`
-   - Multiple users: comma-separated: `123456789,987654321`
-
-   ![Copy User ID](copy-user-id-en.png)
-
----
-
 ## 5. Configure Settings
 
 ### Option A: GUI Settings (Recommended)
@@ -192,7 +181,6 @@ Run `win-start.bat` or double-click the **desktop shortcut**. The tray app launc
 Fill in the fields:
 - **Discord Bot Token** — from step 2-2
 - **Discord Guild ID** — from step 3
-- **Allowed User IDs** — from step 4
 - **Base Project Directory** — parent folder of your projects (use Browse button)
 - **Rate Limit Per Minute** — default 10
 - **Show Cost** — `true` or `false` (Max plan users: set to `false`)
@@ -211,7 +199,6 @@ Edit `.env`:
 ```env
 DISCORD_BOT_TOKEN=your_bot_token_here
 DISCORD_GUILD_ID=your_server_id_here
-ALLOWED_USER_IDS=your_user_id_here
 BASE_PROJECT_DIR=C:\Users\yourname\projects
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
@@ -221,7 +208,6 @@ SHOW_COST=true
 |----------|-------------|---------|
 | `DISCORD_BOT_TOKEN` | Bot token from step 2-2 | `MTQ3MDc...` |
 | `DISCORD_GUILD_ID` | Server ID from step 3 | `1470730378955456578` |
-| `ALLOWED_USER_IDS` | User ID from step 4 | `942037337519575091` |
 | `BASE_PROJECT_DIR` | Parent directory of your projects | `C:\Users\you\projects` |
 | `RATE_LIMIT_PER_MINUTE` | Message rate limit (default 10) | `10` |
 | `SHOW_COST` | Show estimated API cost (default true) | `false` |
@@ -295,7 +281,6 @@ When an update is available, the control panel shows an **"Update Available"** b
 
 In Discord, go to the desired channel:
 ```
-/register path:my-project-folder
 ```
 
 **Path resolution:**
@@ -308,7 +293,7 @@ In Discord, go to the desired channel:
 
 ### Send Messages to Claude
 
-Send a regular message in a registered channel and Claude Code will respond.
+Mention the bot to start a new session. Reply to a mapped conversation message to continue it. Add `w/N` anywhere to include N preceding human messages.
 Attach images, documents, or code files and Claude can read and analyze them.
 
 ### Tool Approval
@@ -321,19 +306,13 @@ When Claude requests file edits or command execution, buttons appear:
 ### Session Management
 
 - `/sessions` — Browse and **Resume** or **Delete** previous sessions
-- `/clear-sessions` — Delete all session files for the current project
 
 ### All Slash Commands
 
 | Command | Description |
 |---------|-------------|
-| `/register path:<folder>` | Register a project to this channel |
-| `/unregister` | Unregister the project |
 | `/status` | Check all project/session statuses |
-| `/stop` | Stop the Claude session in this channel |
-| `/auto-approve mode:on\|off` | Toggle auto-approval |
 | `/sessions` | List sessions to resume or delete |
-| `/clear-sessions` | Delete all sessions for the project |
 
 ---
 
@@ -344,14 +323,12 @@ Create a separate Discord bot for each PC and invite them to the same Discord se
 1. Create a **new bot** per PC in Discord Developer Portal (repeat step 2)
 2. Invite each bot to the same Discord server
 3. Clone this repo on each PC and configure each PC's bot token
-4. Each bot registers projects to different channels via `/register`
 
 ---
 
 ## 10. Security
 
 - Discord servers are **private** by default (no access without invite link)
-- Only users in `ALLOWED_USER_IDS` can interact with the bot
 - Never expose your bot token. If compromised, immediately **Reset Token** in Discord Developer Portal
 - File attachments: executable files (.exe, .bat, etc.) blocked, 25MB size limit
 
@@ -361,7 +338,6 @@ Create a separate Discord bot for each PC and invite them to the same Discord se
 
 ### Bot doesn't respond to messages
 - Verify MESSAGE CONTENT INTENT is enabled (step 2-2)
-- Check that your ID is in `ALLOWED_USER_IDS`
 
 ### Tray app doesn't appear
 - Check if `tray\ClaudeBotTray.exe` exists. If not, delete it and run `win-start.bat` again to recompile
