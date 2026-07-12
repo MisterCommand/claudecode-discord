@@ -113,7 +113,7 @@ export async function handleMessage(message: Message): Promise<void> {
     return;
   }
 
-  message.react("👁️").catch((err) => console.warn("React failed:", err));
+  message.react("👁️").catch(() => {});
 
   let chain: SessionChain;
   let restarted = false;

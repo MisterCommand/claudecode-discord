@@ -163,7 +163,11 @@ class SessionManager {
                 await editStatus(`${formatStreamChunk(responseBuffer)}\n\n-# ${chain.label} • working`);
               }
             }
-            if ("result" in sdkMessage) hasResult = true;
+            if ("result" in sdkMessage) {
+              hasResult = true;
+              const msg = sdkMessage as { result?: string };
+              if (msg.result) responseBuffer = msg.result;
+            }
           }
           break;
         } catch (error) {
