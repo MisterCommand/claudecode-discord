@@ -101,6 +101,54 @@ cd claudecode-discord
 
 Windows users: `install.bat` handles everything automatically — installs dependencies, builds, creates a desktop shortcut, and launches the bot with a system tray GUI.
 
+### Docker
+
+Images are published to GitHub Container Registry for AMD64 and ARM64. Replace
+`<owner>` with the lowercase GitHub account that owns your repository.
+
+```bash
+export IMAGE=ghcr.io/<owner>/claudecode-discord:latest
+
+# Authenticate Claude Code once. The login and session state persist in this volume.
+docker volume create claude-discord-home
+docker run --rm -it \
+  --mount type=volume,source=claude-discord-home,target=/home/node \
+  "$IMAGE" claude login
+
+# Run the bot. An existing .env can be reused; the container path overrides its
+# host-specific BASE_PROJECT_DIR value.
+docker volume create claude-discord-data
+docker run -d --name claude-discord --restart unless-stopped \
+  --env-file .env \
+  --env BASE_PROJECT_DIR=/projects \
+  --mount type=bind,source=/absolute/path/to/projects,target=/projects \
+  --mount type=volume,source=claude-discord-home,target=/home/node \
+  --mount type=volume,source=claude-discord-data,target=/data \
+  "$IMAGE"
+```
+
+Alternatively, use the included Compose example. It uses `BASE_PROJECT_DIR`
+from `.env` as the host bind-mount source while setting the path seen by the
+container to `/projects`.
+
+```bash
+# Optional when using an image published from a different repository:
+export DOCKER_IMAGE=ghcr.io/<owner>/claudecode-discord:latest
+
+# Authenticate once, then start the bot in the background.
+docker compose -f compose.example.yml run --rm bot claude login
+docker compose -f compose.example.yml up -d
+```
+
+The container runs as UID/GID `1000:1000`; mounted projects must be writable by
+that user. The data volume stores the SQLite database, and the home volume stores
+Claude authentication and resumable session data. Containerized agent commands
+run inside the image. A general agent toolchain is included: standard Unix text
+and file tools, Git and SSH, curl and wget, Node.js with npm/npx/pnpm/Yarn/Bun,
+Python with pip, C++ build tools, search/data/archive utilities, SQLite, rsync,
+and common process and network diagnostics. Install any additional
+project-specific tools in a derived image if needed.
+
 <details>
 <summary><strong>Project Structure</strong></summary>
 

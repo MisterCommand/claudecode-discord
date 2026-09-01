@@ -1,0 +1,27 @@
+name: claude-code-discord
+
+services:
+  bot:
+    image: ${DOCKER_IMAGE:-ghcr.io/mistercommand/claudecode-discord:latest}
+    container_name: claude-discord
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      HOME: /home/node
+      BASE_PROJECT_DIR: /projects
+    volumes:
+      - type: bind
+        source: ${BASE_PROJECT_DIR:?Set BASE_PROJECT_DIR in .env}
+        target: /projects
+      - type: volume
+        source: claude-home
+        target: /home/node
+      - type: volume
+        source: bot-data
+        target: /data
+
+volumes:
+  claude-home:
+  bot-data:
