@@ -21,7 +21,7 @@ export async function startBot(): Promise<Client> {
     try {
       const rest = new REST({ version: "10" }).setToken(config.DISCORD_BOT_TOKEN);
       const app = await rest.get(Routes.currentApplication()) as { id: string };
-      await rest.put(Routes.applicationGuildCommands(app.id, config.DISCORD_GUILD_ID), { body: commands.map((command) => command.data.toJSON()) });
+      await rest.put(Routes.applicationCommands(app.id), { body: commands.map((command) => command.data.toJSON()) });
       console.log(`Registered ${commands.length} slash commands`);
     } catch (error) { console.error("Failed to register slash commands:", error); }
   });

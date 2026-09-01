@@ -2,7 +2,7 @@ import { z } from "zod";
 
 const envSchema = z.object({
   DISCORD_BOT_TOKEN: z.string().min(1, "DISCORD_BOT_TOKEN is required"),
-  DISCORD_GUILD_ID: z.string().min(1, "DISCORD_GUILD_ID is required"),
+  DISCORD_GUILD_ID: z.string().optional(),
   BASE_PROJECT_DIR: z.string().min(1, "BASE_PROJECT_DIR is required"),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
   SHOW_COST: z

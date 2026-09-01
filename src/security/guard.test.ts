@@ -4,7 +4,6 @@ import fs from "node:fs";
 vi.mock("../utils/config.js", () => ({
   getConfig: vi.fn(() => ({
     DISCORD_BOT_TOKEN: "t",
-    DISCORD_GUILD_ID: "g",
     BASE_PROJECT_DIR: "/projects",
     RATE_LIMIT_PER_MINUTE: 3,
     SHOW_COST: true,

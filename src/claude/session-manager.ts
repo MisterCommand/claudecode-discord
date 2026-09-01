@@ -16,6 +16,11 @@ interface PendingDecision<T> { resolve: (value: T) => void; chainId: string; mes
 
 const pendingApprovals = new Map<string, PendingDecision<{ behavior: "allow" | "deny"; message?: string }>>();
 const pendingQuestions = new Map<string, PendingDecision<string | null>>();
+const DISCORD_SYSTEM_PROMPT = [
+  "Do not use the AskUserQuestion tool.",
+  "When you need clarification or a decision from the user, ask the question directly in your normal response and end the turn so the user can reply in Discord.",
+  "Keep the question concise and include the relevant options in plain text when useful.",
+].join(" ");
 
 class SessionManager {
   private active = new Map<string, ActiveSession>();
@@ -70,7 +75,7 @@ class SessionManager {
       prompt,
       options: {
         cwd: getConfig().BASE_PROJECT_DIR,
-        permissionMode: "default",
+        permissionMode: "bypassPermissions",
         env: {
           ...process.env,
           ANTHROPIC_API_KEY: undefined,
@@ -78,6 +83,11 @@ class SessionManager {
         },
         ...(resume && chain.session_id ? { resume: chain.session_id } : {}),
         ...(getConfig().CLAUDE_MODEL ? { model: getConfig().CLAUDE_MODEL } : {}),
+        systemPrompt: {
+          type: "preset",
+          preset: "claude_code",
+          append: DISCORD_SYSTEM_PROMPT,
+        },
         canUseTool: async (toolName: string, input: Record<string, unknown>) => {
           toolCount++;
           const names: Record<string, string> = { Read: "Reading files", Glob: "Searching files", Grep: "Searching code", Write: "Writing file", Edit: "Editing file", Bash: "Running command", WebSearch: "Searching web", WebFetch: "Fetching URL", TodoWrite: "Updating tasks" };
