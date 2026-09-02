@@ -38,6 +38,7 @@ RUN apt-get update \
       findutils \
       g++ \
       gawk \
+      gh \
       git \
       grep \
       iproute2 \
