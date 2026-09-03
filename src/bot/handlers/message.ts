@@ -1,5 +1,5 @@
 import { type Attachment, type Collection, type Message, type Snowflake } from "discord.js";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -7,9 +7,10 @@ import { Readable } from "node:stream";
 import { checkRateLimit } from "../../security/guard.js";
 import { getConfig } from "../../utils/config.js";
 import {
-  createChain, getChainByMessage, getChainsForChannel, mapMessage, replaceMissingSession,
+  getChainByMessage, mapMessage, replaceMissingSession,
 } from "../../db/database.js";
 import type { SessionChain } from "../../db/types.js";
+import { createNewChain } from "../../claude/session-chain.js";
 import { sessionManager } from "../../claude/session-manager.js";
 import { sessionFileExists } from "../commands/sessions.js";
 
@@ -35,14 +36,6 @@ async function downloadAttachment(attachment: Attachment): Promise<Downloaded | 
   } catch (error) {
     console.warn("Attachment download failed:", error);
     return { skipped: `Failed to download ${attachment.name}` };
-  }
-}
-
-function newLabel(channelId: string): string {
-  const existing = new Set(getChainsForChannel(channelId).map((chain) => chain.label));
-  while (true) {
-    const label = `S-${randomBytes(4).toString("base64url").toUpperCase().slice(0, 6)}`;
-    if (!existing.has(label)) return label;
   }
 }
 
@@ -150,12 +143,7 @@ export async function handleMessage(message: Message): Promise<void> {
       restarted = true;
     }
   } else {
-    chain = {
-      id: randomUUID(), label: newLabel(message.channelId), guild_id: message.guild.id,
-      channel_id: message.channelId, session_id: null, status: "idle", last_activity: null,
-      created_at: new Date().toISOString(), deleted_at: null,
-    };
-    createChain(chain);
+    chain = createNewChain(message.guild.id, message.channelId);
   }
   mapMessage(message.id, chain.id);
 
@@ -180,5 +168,18 @@ export async function handleMessage(message: Message): Promise<void> {
   const skipped = [...triggerFiles.skipped, ...contextFiles.skipped];
   if (skipped.length) sections.push(`[Attachment warnings]\n${skipped.join("\n")}`);
 
-  await sessionManager.sendMessage({ chain, trigger: message, prompt: sections.join("\n\n") });
+  if (!message.channel.isSendable()) throw new Error("Discord channel is not sendable");
+  await sessionManager.sendMessage({
+    chain,
+    channel: message.channel,
+    replyTo: message,
+    prompt: sections.join("\n\n"),
+    source: "interactive",
+    scheduleToolContext: {
+      client: message.client,
+      guildId: message.guild.id,
+      channelId: message.channelId,
+      member: message.member,
+    },
+  });
 }

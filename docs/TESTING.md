@@ -17,11 +17,14 @@ npx tsc --noEmit      # Type check only (no build output)
 | Test File | Tests | Target Module | Strategy |
 |---|---|---|---|
 | `src/claude/output-formatter.test.ts` | 29 | Message splitting, code block fence handling, Discord embed/button creation | No mocking — pure logic + discord.js constructors work natively |
-| `src/security/guard.test.ts` | 16 | User whitelist, sliding-window rate limiting, path traversal blocking, BASE_PROJECT_DIR scope validation | Mock `getConfig()`, `vi.spyOn(fs)`, `vi.useFakeTimers()` |
-| `src/utils/config.test.ts` | 8 | Zod env validation, singleton caching, `process.exit` on error | `vi.resetModules()` + dynamic `import()` per test |
-| `src/db/database.test.ts` | 12 | Project/Session CRUD operations | In-memory SQLite via `better-sqlite3` constructor mock |
-| `src/bot/commands/sessions.test.ts` | 12 | JSONL session parsing, `findSessionDir`, malformed JSON handling | Real temp files (`fs.mkdtempSync`) + `os.homedir()` mock |
-| **Total** | **77** | | |
+| `src/security/guard.test.ts` | 12 | Sliding-window rate limiting and BASE_PROJECT_DIR path validation | Mock `getConfig()`, `vi.spyOn(fs)`, `vi.useFakeTimers()` |
+| `src/utils/config.test.ts` | 2 | Required/default config parsing | `vi.resetModules()` + dynamic `import()` per test |
+| `src/db/database.test.ts` | 4 | Conversation-chain and message-mapping CRUD | In-memory SQLite via `better-sqlite3` constructor mock |
+| `src/scheduler/parser.test.ts` | 8 | Markdown/YAML parsing, cron, channels, time zones, IDs, serialization | Pure parsing with Croner validation |
+| `src/scheduler/service.test.ts` | 7 | Schedule CRUD, collisions, invalid edits, duplicate names, channel validation, next-run enumeration, concurrency | Real temporary directories |
+| `src/scheduler/tools.test.ts` | 1 | Scheduler tool permission routing | Pure tool-name classification |
+| `src/bot/commands/schedules.test.ts` | 2 | Empty, valid, and invalid `/schedules` rendering | Mock scheduler statuses |
+| **Total** | **65** | | |
 
 ## What Each Test Covers
 
@@ -34,13 +37,13 @@ npx tsc --noEmit      # Type check only (no build output)
 - **createAskUserQuestionEmbed**: Single-select (buttons), multi-select (StringSelectMenu), question indexing, row splitting (5 buttons per row)
 - **createStopButton / createCompletedButton**: CustomId format, disabled state
 
-### guard (16 tests)
+### guard (12 tests)
 
 - **isAllowedUser**: Whitelist match, case sensitivity, empty string rejection
 - **checkRateLimit**: Within-limit requests, over-limit blocking, 60s window reset, per-user independence
 - **validateProjectPath**: Path traversal (`..`) blocking before fs calls, BASE_PROJECT_DIR scope enforcement, non-existent path, non-directory path, valid directory
 
-### config (8 tests)
+### config (2 tests)
 
 - Valid config parsing from `process.env`
 - `ALLOWED_USER_IDS` comma+space splitting
@@ -48,16 +51,14 @@ npx tsc --noEmit      # Type check only (no build output)
 - `process.exit(1)` on missing required variables
 - Singleton caching (same reference on repeated calls)
 
-### database (12 tests)
+### database (4 tests)
 
-- Project CRUD: register, get, getAll (guild filter), unregister (cascade delete), auto-approve toggle
-- Session CRUD: upsert, get (latest by channel), update status, getAll (JOIN with projects)
+- Conversation-chain creation, status/session updates, deletion tombstones, and Discord message mappings
 
-### sessions (12 tests)
+### scheduler (18 tests)
 
-- **findSessionDir**: Missing `~/.claude/projects`, simple path encoding match, no-match fallback
-- **getLastAssistantMessage**: Array/string content, multi-line (returns last line), no assistant messages, malformed JSON skip, whitespace-only skip, multiple text blocks
-- **getLastAssistantMessageFull**: Returns full text, empty file handling
+- YAML front matter, five-field cron and IANA time-zone validation, safe schedule IDs, and serialization
+- File-backed CRUD, case-insensitive name collisions, invalid direct edits, disabled timers, and next-run enumeration
 
 ## Adding New Tests
 

@@ -4,6 +4,7 @@ import path from "node:path";
 import { loadConfig } from "./utils/config.js";
 import { initDatabase } from "./db/database.js";
 import { startBot } from "./bot/client.js";
+import { scheduleService } from "./scheduler/service.js";
 
 const LOCK_FILE = path.join(process.cwd(), ".bot.lock");
 
@@ -42,9 +43,9 @@ async function main() {
   }
 
   // Clean up lock file on exit
-  process.on("exit", releaseLock);
-  process.on("SIGINT", () => { releaseLock(); process.exit(0); });
-  process.on("SIGTERM", () => { releaseLock(); process.exit(0); });
+  process.on("exit", () => { scheduleService.stop(); releaseLock(); });
+  process.on("SIGINT", () => { scheduleService.stop(); releaseLock(); process.exit(0); });
+  process.on("SIGTERM", () => { scheduleService.stop(); releaseLock(); process.exit(0); });
 
   // Global error handlers — prevent silent hangs from unhandled errors
   process.on("unhandledRejection", (reason) => {

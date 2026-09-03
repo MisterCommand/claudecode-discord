@@ -66,6 +66,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 - ⏱️ Real-time progress display (tool usage, elapsed time)
 - 🔒 Per-user rate limiting, fixed workspace, attachment filtering, duplicate instance prevention
 - 📊 **Claude Code usage dashboard** in control panel — Session (5hr), Weekly (7day), Weekly Sonnet with progress bars, auto-refresh, click to open usage page
+- 🗓️ Markdown-based recurring schedules with natural-language Discord management
 
 ## Tech Stack
 
@@ -76,6 +77,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 | AI | @anthropic-ai/claude-agent-sdk |
 | DB | better-sqlite3 (SQLite) |
 | Validation | zod v4 |
+| Scheduling | Croner + YAML front matter |
 | Build | tsup (ESM) |
 | Test | vitest |
 
@@ -171,6 +173,7 @@ claudecode-discord/
 │   │   └── output-formatter.ts # Discord output formatting
 │   ├── db/                     # SQLite (better-sqlite3)
 │   ├── security/               # Rate limiting and path validation
+│   ├── scheduler/              # Markdown schedules, Croner registry, Agent tools
 │   └── utils/                  # Config (zod)
 ├── SETUP.md                    # macOS/Linux setup guide
 ├── docs/                       # Translations, screenshots
@@ -196,6 +199,46 @@ Replying to an otherwise unrelated human message while mentioning the bot starts
 | `/status` | Show sessions in the current channel or thread |
 | `/sessions` | Inspect or delete sessions in the current channel or thread |
 | `/usage` | Show Claude Code usage |
+| `/schedules` | Show recurring schedules for the current channel or thread |
+
+### Recurring schedules
+
+Ask the bot to manage a schedule in normal language:
+
+```text
+@Claude every day at 8 a.m., summarize code changes and pull requests
+@Claude disable the Daily engineering summary schedule
+@Claude delete the Daily engineering summary schedule
+```
+
+The bot translates explicit scheduling requests into built-in schedule tools. Creating, updating, and deleting schedules happens immediately without another approval prompt. Each scheduled occurrence starts a fresh session; reply to its Discord result to continue that specific session.
+
+Schedules are stored as one Markdown file per task in the automatically created, gitignored `schedules/` directory. For normal installations this is inside the installation directory. In Docker it is `/data/schedules`, which is covered by the existing data volume. Files can also be edited directly while the bot is running; changes are detected automatically.
+
+```markdown
+---
+name: Daily engineering summary
+description: Summarize code and pull-request activity
+cron: "0 8 * * *"
+discord_channel: "123456789012345678"
+enabled: true
+timezone: "Asia/Hong_Kong"
+---
+
+Summarize code changes and pull requests since the previous day.
+Highlight anything that needs attention.
+```
+
+- The filename stem is the schedule ID and must contain only lowercase ASCII letters, numbers, dots, hyphens, or underscores.
+- `name`, `cron`, `discord_channel`, and a non-empty Markdown prompt are required. Channel IDs must be quoted so YAML does not round large Discord IDs.
+- Cron expressions use exactly five fields: minute, hour, day of month, month, and day of week.
+- `enabled` defaults to `true`. `description` and `timezone` are optional.
+- Without `timezone`, the host machine's local time zone is used. Docker hosts commonly use UTC, so set an IANA zone when wall-clock time matters.
+- Occurrences missed while the bot is offline are skipped. Overlapping occurrences are allowed and run as separate sessions.
+- All scheduled work runs in `BASE_PROJECT_DIR`.
+
+> [!WARNING]
+> Schedules are trusted, unattended automations. Scheduled turns automatically approve all executable tools, including Bash, Write, and Edit. Anyone who can ask this bot to create a schedule can establish recurring full-access work in `BASE_PROJECT_DIR`. Scheduled turns cannot create or modify other schedules.
 
 During a turn, one Discord reply is edited in place with progress and streaming output. Approval and question prompts appear separately and are deleted after resolution. On success, the progress reply becomes the final answer; oversized answers continue in mapped follow-up messages.
 
@@ -244,7 +287,7 @@ The bot runs entirely on your own PC/server. No external servers involved, and n
 
 - Access follows Discord channel and thread permissions
 - Per-user request rate limiting remains enabled
-- All agent work is fixed to BASE_PROJECT_DIR`r
+- All agent work is fixed to `BASE_PROJECT_DIR`
 
 ### Execution Protection
 
@@ -256,6 +299,7 @@ The bot runs entirely on your own PC/server. No external servers involved, and n
 
 - The `.env` file contains your bot token — **never share it publicly.** If compromised, immediately Reset Token in Discord Developer Portal
 - Every write or shell action requires explicit approval from a user who can access the channel
+- Scheduled turns are the exception: their executable tools are auto-approved so they can finish unattended. Treat access to schedule creation and the local `schedules/` directory as full workspace access.
 
 ## Quick Start by Platform
 

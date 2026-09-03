@@ -8,14 +8,17 @@ import { handleButtonInteraction, handleModalSubmit, handleSelectMenuInteraction
 import * as statusCmd from "./commands/status.js";
 import * as sessionsCmd from "./commands/sessions.js";
 import * as usageCmd from "./commands/usage.js";
+import * as schedulesCmd from "./commands/schedules.js";
+import { startScheduleRuntime } from "../scheduler/runtime.js";
 
-const commands = [statusCmd, sessionsCmd, usageCmd];
+const commands = [statusCmd, sessionsCmd, usageCmd, schedulesCmd];
 const commandMap = new Collection<string, { execute: (interaction: ChatInputCommandInteraction) => Promise<void> }>();
 for (const command of commands) commandMap.set(command.data.name, command);
 
 export async function startBot(): Promise<Client> {
   const config = getConfig();
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
+  let schedulerStarted = false;
   client.on("ready", async () => {
     console.log(`Bot logged in as ${client.user?.tag}`);
     try {
@@ -24,6 +27,14 @@ export async function startBot(): Promise<Client> {
       await rest.put(Routes.applicationCommands(app.id), { body: commands.map((command) => command.data.toJSON()) });
       console.log(`Registered ${commands.length} slash commands`);
     } catch (error) { console.error("Failed to register slash commands:", error); }
+    if (!schedulerStarted) {
+      schedulerStarted = true;
+      try { await startScheduleRuntime(client); }
+      catch (error) {
+        schedulerStarted = false;
+        console.error("Failed to start scheduler:", error);
+      }
+    }
   });
   client.on("interactionCreate", async (interaction: Interaction) => {
     try {
