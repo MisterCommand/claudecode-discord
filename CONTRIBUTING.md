@@ -57,7 +57,7 @@ Use conventional format:
 ```
 feat: add /cost command for session billing
 fix: session resume failing after bot restart
-docs: update Windows setup guide
+docs: update setup guide
 ```
 
 ### Pull Requests

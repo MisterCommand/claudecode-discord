@@ -1,154 +1,97 @@
-# macOS / Linux Setup Guide
+# Claude Code Discord Bot Setup
 
-Complete guide for installing and running the Claude Code Discord Bot on macOS and Linux.
+This guide covers the CLI setup for macOS, Linux, Windows, and headless
+servers. The bot runs as a Node.js process and is controlled through Discord.
 
-> **[Windows Setup](docs/SETUP-WINDOWS.md)**
+## 1. Prerequisites
 
----
+### Node.js
 
-## 0. Auto Install (Recommended)
+Node.js 20 or newer is required:
 
-After cloning, run the install script to automatically check and install Node.js, Claude Code CLI, and npm packages.
+```bash
+node -v
+```
+
+Install it from [nodejs.org](https://nodejs.org), or use your operating
+system's package manager.
+
+### Claude Code
+
+Install and authenticate the Claude Code CLI:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+claude --version
+claude
+```
+
+Complete the browser login when prompted. The bot uses the existing Claude Code
+OAuth session; no `ANTHROPIC_API_KEY` is required.
+
+## 2. Install the Project
+
+Clone the repository and install dependencies:
 
 ```bash
 git clone https://github.com/chadingTV/claudecode-discord.git
 cd claudecode-discord
-./install.sh
-```
-
-The script automatically installs dependencies and builds the project. On **macOS**, it also installs Xcode Command Line Tools (needed for the Swift menu bar app) and accepts the Xcode license — you may be prompted for your password.
-
-If auto install fails, follow the manual installation steps below.
-
----
-
-## 0-M. Manual Install - Prerequisites
-
-### Node.js
-
-Node.js 20 or higher is required.
-
-```bash
-node -v   # v20.x.x or higher
-```
-
-If not installed:
-
-- **macOS**: `brew install node` or download from [nodejs.org](https://nodejs.org)
-- **Linux**:
-  ```bash
-  curl -fsSL https://deb.nodesource.com/setup_22.x | sudo -E bash -
-  sudo apt-get install -y nodejs
-  ```
-
-### Claude Code
-
-This bot requires **Claude Code CLI** to be installed and logged in.
-
-```bash
-claude --version   # Verify installation
-```
-
-If not installed:
-
-```bash
-npm install -g @anthropic-ai/claude-code
-```
-
-First-time login:
-
-```bash
-claude
-# Browser opens for Anthropic account login
-# After login, CLI is ready to use
-```
-
-> **Important: You MUST run `claude` in the terminal and log in before starting the bot.**
-> The bot cannot create Claude Code sessions if you haven't logged in first.
-> To verify: run `claude` — if it starts a conversation immediately, you're logged in.
-
-> Claude Code uses **OAuth authentication**, not an API key.
-> No `ANTHROPIC_API_KEY` environment variable is needed.
-
----
-
-## 1. Clone and Install
-
-```bash
-git clone git@github.com:chadingTV/claudecode-discord.git
-cd claudecode-discord
 npm install
 ```
 
-> For HTTPS clone:
-> ```bash
-> git clone https://github.com/chadingTV/claudecode-discord.git
-> ```
-
-### Verify Build (Optional)
+Optional CLI bootstrap scripts perform the prerequisite checks, dependency
+installation, environment-file setup, and build:
 
 ```bash
-npm run build   # Check for type errors
+./install.sh                 # macOS/Linux
+./install.bat                # Windows Command Prompt
+.\install.bat                # Windows PowerShell
 ```
 
----
+These scripts do not create shortcuts, launch desktop applications, or manage
+background services.
 
-## 2. Create Discord Bot
+## 3. Create and Invite the Discord Bot
 
-### 2-1. Create Discord Application
+### Create the application
 
-1. Go to https://discord.com/developers/applications
-2. Click **"New Application"**
-3. Enter a name (e.g., "My Claude Code") → **Create**
-
-### 2-2. Bot Settings
-
-1. Click **"Bot"** in the left menu
-2. Click **"Reset Token"** → Copy the token (shown only once!)
-   - This is your `DISCORD_BOT_TOKEN`
-3. Scroll down to **Privileged Gateway Intents**:
-   - Enable **MESSAGE CONTENT INTENT** (required!)
-   - Save Changes
+1. Open [Discord Developer Applications](https://discord.com/developers/applications).
+2. Select **New Application** and give it a name.
+3. Open **Bot**, select **Reset Token**, and save the token as
+   `DISCORD_BOT_TOKEN`.
+4. Under **Privileged Gateway Intents**, enable **Message Content Intent**.
 
    ![Message Content Intent](docs/message-content-intent.png)
 
-### 2-3. Invite Bot to Server
+### Invite the bot
 
-1. Click **"OAuth2"** in the left menu
-2. In **"OAuth2 URL Generator"**:
-   - **SCOPES**: Check `bot`, `applications.commands`
+1. Open **OAuth2 > URL Generator**.
+2. Select the `bot` and `applications.commands` scopes.
 
-   <p align="center">
-     <img src="docs/discord-scopes.png" alt="Discord OAuth2 Scopes" width="500">
-   </p>
+   ![Discord OAuth2 Scopes](docs/discord-scopes.png)
 
-   - **BOT PERMISSIONS**: Check `Send Messages`, `Add Reactions`, `Embed Links`, `Read Message History`, `Use Slash Commands`
+3. Select these bot permissions: `Send Messages`, `Add Reactions`, `Embed
+   Links`, `Read Message History`, and `Use Slash Commands`.
 
-   <p align="center">
-     <img src="docs/discord-bot-permissions.png" alt="Discord Bot Permissions" width="500">
-   </p>
+   ![Discord Bot Permissions](docs/discord-bot-permissions.png)
 
-3. Copy the generated URL and paste in your browser
-4. Select the server to invite to → **Authorize**
+4. Open the generated URL and authorize the bot in your server.
 
----
+## 4. Configure the Environment
 
-## 3. Get Discord Server ID
-
-1. Discord app (desktop/mobile) → **User Settings** (gear icon)
-2. **App Settings > Advanced** → Enable **Developer Mode**
-3. Right-click server name (desktop) or long-press (mobile) → **"Copy Server ID"**
-   - This is your `DISCORD_GUILD_ID`
-
-   ![Copy Server ID](docs/copy-server-id-en.png)
-
-## 5. Environment Variables
+Copy the example file:
 
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` with your values:
+On Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+Edit `.env`:
 
 ```env
 DISCORD_BOT_TOKEN=your_bot_token_here
@@ -156,169 +99,155 @@ DISCORD_GUILD_ID=your_server_id_here
 BASE_PROJECT_DIR=/Users/yourname/projects
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
+# CLAUDE_MODEL=claude-sonnet-4-6
 ```
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DISCORD_BOT_TOKEN` | Bot token from step 2-2 | `MTQ3MDc...` |
-| `DISCORD_GUILD_ID` | Server ID from step 3 | `1470730378955456578` |
-| `BASE_PROJECT_DIR` | Parent directory of your projects | `/Users/you/projects` |
-| `RATE_LIMIT_PER_MINUTE` | Message rate limit (default 10) | `10` |
-| `SHOW_COST` | Show estimated API cost in results (default true) | `false` |
+| Variable | Description |
+|----------|-------------|
+| `DISCORD_BOT_TOKEN` | Bot token from the Discord Developer Portal |
+| `DISCORD_GUILD_ID` | Optional server ID used for configuration context |
+| `BASE_PROJECT_DIR` | Workspace root for registered projects |
+| `RATE_LIMIT_PER_MINUTE` | Per-user message limit; defaults to `10` |
+| `SHOW_COST` | Show estimated task cost; defaults to `true` |
+| `CLAUDE_MODEL` | Optional Claude model override |
 
+To copy a server ID, enable **Developer Mode** in Discord's advanced settings,
+then right-click the server name or long-press it on mobile.
 
----
+![Copy Server ID](docs/copy-server-id-en.png)
 
-## 6. Run
-
-### macOS (Background + Menu Bar)
+## 5. Build and Run
 
 ```bash
-./mac-start.sh          # Start (background + menu bar icon)
-./mac-start.sh --stop   # Stop
-./mac-start.sh --status # Check status
-./mac-start.sh --fg     # Foreground mode (for debugging)
+npm run build
+npm start
 ```
 
-<p align="center">
-  <img src="docs/mac-tray.png" alt="macOS Control Panel" width="400">
-</p>
-
-- **Control Panel GUI**: left-click menu bar icon to open control panel (right-click for dropdown menu)
-- **EN / KR language toggle** with persistent preference
-- First run opens control panel automatically; prompts GUI settings dialog if `.env` not configured
-- Menu bar icon: 🟢 running / 🔴 stopped / ⚙️ setup needed
-- **Claude Code usage dashboard**: Session (5hr) / Weekly (7day) / Weekly Sonnet usage shown as color-coded progress bars — auto-refreshes every 5 minutes, cached to `~/.claude/.usage-cache.json`, click to open [claude.ai/settings/usage](https://claude.ai/settings/usage)
-- GUI Settings dialog with folder browser — no manual `.env` editing needed:
-
-<p align="center">
-  <img src="docs/mac-settings.png" alt="macOS Settings Dialog" width="400">
-</p>
-
-- One-click auto-update: pulls code, rebuilds bot and menu bar app
-- Auto-restarts on crash, auto-starts on boot (via launchd)
-
-### Linux (Background + System Tray)
+For development:
 
 ```bash
-./linux-start.sh          # Start (systemd + tray icon if GUI available)
-./linux-start.sh --stop   # Stop
-./linux-start.sh --status # Check status
-./linux-start.sh --fg     # Foreground mode (for debugging)
+npm run dev
 ```
 
-- **EN / KR language toggle** with persistent preference
-- **Control Panel GUI**: left-click tray icon to open GTK3 control panel window (right-click for dropdown menu)
-- System tray icon: green (running) / red (stopped) / orange (setup needed)
-- **Claude Code usage dashboard**: Session (5hr) / Weekly (7day) / Weekly Sonnet usage shown as color-coded progress bars — auto-refreshes every 5 minutes, cached to `~/.claude/.usage-cache.json`, click to open [claude.ai/settings/usage](https://claude.ai/settings/usage)
-- GUI Settings dialog with folder browser (GTK3)
-- Auto-restarts on crash, auto-starts on boot (via systemd)
-- Tray requires `pip3 install pystray Pillow` (auto-installed on first run)
-- Works without GUI (headless server) — tray is skipped automatically
+The bot runs in the foreground and logs to the terminal. Stop it with
+`Ctrl+C`. For unattended operation, use Docker or a process manager already
+supported by your operating system.
 
-### Development Mode
+### Docker
+
+The image is published for AMD64 and ARM64. The image includes the Claude Code
+runtime, and the `/home/node` volume preserves authentication and resumable
+session data:
 
 ```bash
-npm run dev          # Dev mode (hot reload via tsx)
-npm run build        # Production build
-npm start            # Run built files
+export IMAGE=ghcr.io/<owner>/claudecode-discord:latest
+docker volume create claude-discord-home
+docker volume create claude-discord-data
+
+docker run --rm -it \
+  --mount type=volume,source=claude-discord-home,target=/home/node \
+  "$IMAGE" claude login
+
+docker run -d --name claude-discord --restart unless-stopped \
+  --env-file .env \
+  --env BASE_PROJECT_DIR=/projects \
+  --mount type=bind,source=/absolute/path/to/projects,target=/projects \
+  --mount type=volume,source=claude-discord-home,target=/home/node \
+  --mount type=volume,source=claude-discord-data,target=/data \
+  "$IMAGE"
 ```
 
----
+Or use the included Compose example:
 
-## 7. Usage
-
-### Register a Project to a Channel
-
-In Discord, go to the desired channel:
-```
+```bash
+docker compose -f compose.example.yml run --rm bot claude login
+docker compose -f compose.example.yml up -d
 ```
 
-**How path resolution works:**
+## 6. Use the Bot
 
-| Input type | Example input | Resolved path (`BASE_PROJECT_DIR=/Users/you/projects`) |
-|---|---|---|
-| Folder name only | `my-app` | `/Users/you/projects/my-app` |
-| Relative path | `work/my-app` | `/Users/you/projects/work/my-app` |
-| Absolute path | `/Users/you/other/project` | `/Users/you/other/project` (used as-is) |
+Mention the bot in a registered channel to start a session:
 
-> **Tip:** Run `pwd` in your terminal inside the project directory to get the absolute path.
+```text
+@Claude investigate this test failure
+```
 
-### Send Messages to Claude
+Reply to a mapped conversation message to continue its session. Add `w/N` to
+include preceding human messages. Images, documents, and code attachments are
+passed to Claude for analysis.
 
-Mention the bot to start a new session. Reply to a mapped conversation message to continue it. Add `w/N` anywhere to include N preceding human messages.
-Attach images, documents, or code files and Claude can read and analyze them.
+### Register a project
 
-### In-Progress Controls
+Send a project registration request in the target Discord channel. Project paths
+may be a folder name under `BASE_PROJECT_DIR`, a relative path, or an absolute
+path within the configured workspace root.
 
-- **⏹️ Stop** button on progress messages for instant cancellation
-- Sending a new message while busy shows "previous task in progress" notice
-
-### Tool Approval
-
-When Claude requests file edits, creation, or command execution, buttons appear:
-- **Approve** — Approve this one time
-- **Deny** — Reject
-- **Auto-approve All** — Auto-approve all future requests in this channel
-
-### Session Management
-
-- `/sessions` — Browse existing sessions and choose to **Resume** or **Delete**
-
-### Slash Commands
+### Slash commands
 
 | Command | Description |
 |---------|-------------|
-| `/status` | Check all project/session statuses |
-| `/sessions` | List sessions to resume or delete |
-| `/usage` | Show Claude Code usage (Session 5hr / Weekly / Sonnet) |
+| `/status` | Show session status in the current channel or thread |
+| `/sessions` | Inspect, resume, or delete sessions |
+| `/usage` | Show Claude Code Session, Weekly, and Sonnet usage |
+| `/schedules` | Show recurring schedules |
 
----
+### Approvals and controls
 
-## 8. Multi-PC Setup
+- Write, edit, and shell tools require approval through Discord buttons unless
+  channel auto-approval is enabled.
+- Read-only tools are approved automatically.
+- AskUserQuestion prompts appear as Discord controls or a text-input dialog.
+- The Stop button cancels only the session represented by its progress message.
 
-Create a separate Discord bot for each PC and invite them to the same Discord server (guild).
+## 7. Recurring Schedules
 
-1. Create a **new bot** per PC in Discord Developer Portal (repeat step 2)
-2. Invite each bot to the same Discord server
-3. Clone this repo on each PC and set the PC's bot token in `.env`
+Ask the bot to create, update, disable, or delete a schedule. Schedules are
+stored as Markdown files in the gitignored `schedules/` directory and are
+reloaded while the bot is running.
 
-Multiple bots in the same guild are distinguishable by bot name when running slash commands.
+Each schedule requires `name`, a five-field `cron`, a quoted
+`discord_channel`, and a non-empty Markdown prompt. Optional fields include
+`description`, `enabled`, and an IANA `timezone`.
 
----
+Scheduled turns automatically approve executable tools, including Bash, Write,
+and Edit. Treat schedule creation and the schedules directory as full workspace
+access.
 
-## 9. Security
+## 8. Troubleshooting
 
-- Discord servers are **private** by default (no access without invite link)
-- Never expose your bot token. If compromised, immediately **Reset Token** in Discord Developer Portal
-- File attachments: executable files (.exe, .bat, etc.) blocked, 25MB size limit
+### The bot does not respond
 
----
+- Confirm **Message Content Intent** is enabled.
+- Confirm `DISCORD_BOT_TOKEN` and `BASE_PROJECT_DIR` are set in `.env`.
+- Confirm the bot can view and send messages in the channel.
 
-## 10. Troubleshooting
+### Slash commands are missing
 
-### Bot doesn't respond to messages
-- Verify MESSAGE CONTENT INTENT is enabled (step 2-2)
+- Reinvite the bot with the `applications.commands` scope.
+- Restart the bot so commands are registered again.
+- Discord may take time to refresh globally registered commands.
 
-### "Unknown interaction" error
-- Occurs when bot can't respond within 3 seconds → usually resolves automatically
+### Claude Code authentication fails
 
-### Slash commands not showing
-- Ensure `applications.commands` scope was checked when inviting the bot
-- May take up to 1 hour after bot restart (Discord cache)
+Run `claude` in the same environment used by the bot and complete login again.
+For Docker, authenticate inside the persistent `/home/node` volume.
 
-### Resuming sessions
-- Sessions persist across bot restarts (session ID stored in DB)
-- Use `/sessions` to browse and resume or delete previous sessions
+### Native SQLite installation fails
 
-### Manual update
-If the tray update button doesn't work, open a terminal in the bot folder and run:
+`better-sqlite3` may require a C/C++ build toolchain when no prebuilt binary is
+available. Install the build tools for your operating system, then run:
+
 ```bash
-git fetch origin main --tags && git reset --hard origin/main && npm install && npm rebuild better-sqlite3 && npm run build
+npm rebuild better-sqlite3
+npm run build
 ```
-Then restart the bot. After this one-time fix, future tray updates will work normally.
 
-### Claude Code issues
-- Verify installation with `claude --version`
-- Run `claude` to check login status
-- If not logged in, run `claude` to re-authenticate
+## 9. Development Checks
+
+```bash
+npm test
+npm run build
+npx tsc --noEmit
+```
+
+See [docs/TESTING.md](docs/TESTING.md) for the test layout and coverage.

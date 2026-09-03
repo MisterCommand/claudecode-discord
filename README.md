@@ -15,17 +15,16 @@ Control Claude Code from your phone — a multi-machine agent hub via Discord.
 
 ## Why This Bot? — vs Official Remote Control
 
-Anthropic's [Remote Control](https://code.claude.com/docs/en/remote-control) lets you view a running local session from your phone. This bot goes further — it's a **multi-machine agent hub** that runs as a daemon, creates new sessions on demand, and supports team collaboration.
+Anthropic's [Remote Control](https://code.claude.com/docs/en/remote-control) lets you view a running local session from your phone. This bot goes further — it's a **multi-machine agent hub** that creates new sessions on demand, supports team collaboration, and can run persistently under Docker or a process manager.
 
 |                              | This Bot | Official Remote |
 |------------------------------|:--------:|:---------------:|
 | Start new session from phone | ✅       | ❌              |
-| Daemon (survives terminal close) | ✅   | ❌              |
+| Persistent process deployment | ✅   | ❌              |
 | Multi-machine hub            | ✅       | ❌              |
 | Concurrent sessions per machine | ✅    | ❌              |
 | Push notifications           | ✅       | ❌              |
 | Team collaboration           | ✅       | ❌              |
-| Native tray app (3 OS)       | ✅       | ❌              |
 | Zero open ports              | ✅       | ✅              |
 
 ### Multi-PC Hub
@@ -65,7 +64,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 - 🔄 Session resume/delete/new (persist across bot restarts, last conversation preview)
 - ⏱️ Real-time progress display (tool usage, elapsed time)
 - 🔒 Per-user rate limiting, fixed workspace, attachment filtering, duplicate instance prevention
-- 📊 **Claude Code usage dashboard** in control panel — Session (5hr), Weekly (7day), Weekly Sonnet with progress bars, auto-refresh, click to open usage page
+- 📊 **Claude Code usage dashboard** in Discord — Session (5hr), Weekly (7day), and Weekly Sonnet usage with progress bars
 - 🗓️ Markdown-based recurring schedules with natural-language Discord management
 
 ## Tech Stack
@@ -86,22 +85,19 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 ```bash
 git clone https://github.com/chadingTV/claudecode-discord.git
 cd claudecode-discord
-
-# macOS / Linux
-./install.sh
-
-# Windows
-./install.bat
+npm install
+cp .env.example .env   # Windows PowerShell: Copy-Item .env.example .env
+# Edit .env, then:
+npm run build
+npm start
 ```
+
+The optional `install.sh` and `install.bat` scripts perform the same CLI setup
+and build steps. They do not install or launch a desktop application.
 
 ### Setup Guides
 
-| Platform | Guide |
-|----------|-------|
-| **macOS / Linux** | **[SETUP.md](SETUP.md)** — terminal-based setup, menu bar / tray app |
-|  **Windows** | **[SETUP-WINDOWS.md](docs/SETUP-WINDOWS.md)** — GUI installer, system tray app with control panel, desktop shortcut |
-
-Windows users: `install.bat` handles everything automatically — installs dependencies, builds, creates a desktop shortcut, and launches the bot with a system tray GUI.
+See **[SETUP.md](SETUP.md)** for the complete cross-platform CLI setup guide.
 
 ### Docker
 
@@ -156,17 +152,12 @@ project-specific tools in a derived image if needed.
 
 ```
 claudecode-discord/
-├── install.sh / install.bat    # Auto-installers
-├── mac-start.sh                # macOS background launcher + menu bar
-├── linux-start.sh              # Linux background launcher + system tray
-├── win-start.bat               # Windows background launcher + system tray
-├── menubar/                    # macOS menu bar app (Swift)
-├── tray/                       # System tray app (Linux: Python, Windows: C#)
+├── install.sh / install.bat    # Optional CLI bootstrap scripts
 ├── src/
 │   ├── index.ts                # Entry point
 │   ├── bot/
 │   │   ├── client.ts           # Discord bot init & events
-│   │   ├── commands/           # /sessions, /status, /usage
+│   │   ├── commands/           # /sessions, /status, /usage, /schedules
 │   │   └── handlers/           # Message & interaction handlers
 │   ├── claude/
 │   │   ├── session-manager.ts  # Session lifecycle
@@ -175,8 +166,10 @@ claudecode-discord/
 │   ├── security/               # Rate limiting and path validation
 │   ├── scheduler/              # Markdown schedules, Croner registry, Agent tools
 │   └── utils/                  # Config (zod)
-├── SETUP.md                    # macOS/Linux setup guide
-├── docs/                       # Translations, screenshots
+├── SETUP.md                    # Cross-platform CLI setup guide
+├── Dockerfile                  # Production container image
+├── compose.example.yml         # Docker Compose example
+├── docs/                       # Setup and testing documentation
 └── package.json
 ```
 
@@ -301,55 +294,18 @@ The bot runs entirely on your own PC/server. No external servers involved, and n
 - Every write or shell action requires explicit approval from a user who can access the channel
 - Scheduled turns are the exception: their executable tools are auto-approved so they can finish unattended. Treat access to schedule creation and the local `schedules/` directory as full workspace access.
 
-## Quick Start by Platform
+## Running the Bot
 
-Each platform runs the bot as a background service with a native GUI for control — no terminal babysitting needed.
-
-### macOS — Menu Bar App
-
-<p align="center">
-  <img src="docs/mac-tray.png" alt="macOS Control Panel" width="400">
-</p>
-
-```bash
-./mac-start.sh          # Start (background + menu bar icon)
-./mac-start.sh --stop   # Stop
-```
-
-Control panel GUI (left-click icon), **Claude Code usage dashboard** (Session 5hr / Weekly / Sonnet, click to open usage page), settings dialog, auto-update, auto-restart on crash, auto-start on boot (launchd). → **[Full guide](SETUP.md)**
-
-### Linux — System Tray + Control Panel
-
-<p align="center">
-  <img src="docs/linux-tray.png" alt="Linux System Tray" width="350">
-</p>
-
-```bash
-./linux-start.sh          # Start (systemd + tray icon)
-./linux-start.sh --stop   # Stop
-```
-
-GTK3 **control panel** (left-click tray icon), **Claude Code usage dashboard**, settings dialog, auto-restart, auto-start on boot (systemd). Works headless too. → **[Full guide](SETUP.md)**
-
-### Windows — System Tray + Control Panel
-
-<p align="center">
-  <img src="docs/windows-tray.png" alt="Windows Control Panel" width="400">
-</p>
-
-```batch
-win-start.bat          &:: Start (background + tray + control panel)
-win-start.bat --stop   &:: Stop
-```
-
-Desktop shortcut, control panel GUI, **Claude Code usage dashboard**, settings dialog, auto-update, auto-start on logon (Registry). → **[Full guide](docs/SETUP-WINDOWS.md)**
+The bot runs in the foreground so logs are visible and operation is consistent
+across macOS, Linux, Windows, and headless servers. Use Docker or your preferred
+process manager when it must run unattended.
 
 ## Development
 
 ```bash
-npm run dev          # Dev mode (tsx)
-npm run build        # Production build (tsup)
-npm start            # Run built files
+npm run dev          # Development mode via tsx
+npm run build        # Production build
+npm start            # Run the production build
 npm test             # Tests (vitest)
 npm run test:watch   # Test watch mode
 ```

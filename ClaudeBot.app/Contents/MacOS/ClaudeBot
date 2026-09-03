@@ -1,4 +1,0 @@
-#!/bin/bash
-DIR="$(cd "$(dirname "$0")/../../.." && pwd)"
-cd "$DIR"
-osascript -e "tell application \"Terminal\" to do script \"cd '$DIR' && ./mac-start.sh\""

@@ -157,7 +157,7 @@ async function fetchUsageLive(): Promise<UsageResponse | null> {
     if (!res.ok) return null;
     const data = (await res.json()) as UsageResponse;
 
-    // Save to cache for tray app and future reads
+    // Save to cache for future reads
     try {
       const cachePath = join(homedir(), ".claude", ".usage-cache.json");
       const cache = { ...data, _fetched_at: new Date().toISOString() };
