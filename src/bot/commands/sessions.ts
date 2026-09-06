@@ -50,7 +50,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     return;
   }
   const options = chains.slice(0, 25).map((chain) => ({
-    label: `${chain.status === "online" ? "🟢" : chain.status === "waiting" ? "🟡" : "⚪"} ${chain.label}`,
+    label: `${chain.status === "online" ? "🟢" : "⚪"} ${chain.label}`,
     description: `${chain.status} • ${chain.last_activity ?? chain.created_at}`.slice(0, 100),
     value: chain.id,
   }));

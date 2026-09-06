@@ -97,6 +97,7 @@ Edit `.env`:
 DISCORD_BOT_TOKEN=your_bot_token_here
 DISCORD_GUILD_ID=your_server_id_here
 BASE_PROJECT_DIR=/Users/yourname/projects
+BOT_CONFIG_DIR=/Users/yourname/claude-discord-config
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
 # CLAUDE_MODEL=claude-sonnet-4-6
@@ -107,6 +108,7 @@ SHOW_COST=true
 | `DISCORD_BOT_TOKEN` | Bot token from the Discord Developer Portal |
 | `DISCORD_GUILD_ID` | Optional server ID used for configuration context |
 | `BASE_PROJECT_DIR` | Workspace root for registered projects |
+| `BOT_CONFIG_DIR` | Absolute directory containing the required read-only `config.yaml`; must be outside `BASE_PROJECT_DIR` |
 | `RATE_LIMIT_PER_MINUTE` | Per-user message limit; defaults to `10` |
 | `SHOW_COST` | Show estimated task cost; defaults to `true` |
 | `CLAUDE_MODEL` | Optional Claude model override |
@@ -116,7 +118,61 @@ then right-click the server name or long-press it on mobile.
 
 ![Copy Server ID](docs/copy-server-id-en.png)
 
-## 5. Build and Run
+## 5. Create the bot configuration
+
+Copy `config.example.yaml` to `config.yaml` in the directory specified by
+`BOT_CONFIG_DIR`, then enter exact Discord channel or thread IDs and protected
+repositories. IDs must remain quoted.
+
+```yaml
+version: 1
+
+access:
+  admin_channels:
+    - "123456789012345678"
+  protected_repositories:
+    - USThing/USThingServer
+
+tools:
+  denied: []
+  restricted_denied: []
+```
+
+Admin classification uses only the exact destination ID. A thread does not
+inherit Admin access from its parent channel. `tools.denied` applies to both
+profiles; `tools.restricted_denied` applies only to Restricted. Both profiles
+automatically execute every tool not denied by these lists or a policy hook.
+Keep GitHub MCP connection settings and credentials in Claude Code's normal MCP
+configuration. This file contains policy only and assumes the MCP server is
+named `github`.
+
+After editing, make the directory and file read-only and own them from an
+account other than the non-root bot account. On macOS or Linux:
+
+```bash
+sudo chown -R root /absolute/path/to/claude-discord-config
+sudo chmod 444 /absolute/path/to/claude-discord-config/config.yaml
+sudo chmod 555 /absolute/path/to/claude-discord-config
+```
+
+A root bot process is accepted only when the config is on a read-only mount.
+
+On Windows, keep the directory owned by an administrative account, use a
+dedicated non-owner bot account, and grant that account read-and-execute access
+without write access. Run this from an elevated terminal, replacing the path
+and account:
+
+```powershell
+icacls "C:\claude-discord-config" /inheritance:r
+icacls "C:\claude-discord-config" /grant:r "MACHINE\claude-bot:(OI)(CI)RX"
+```
+
+Keep an administrative account with permission to restore or edit the ACL.
+Stop the bot before changing the file, restore read-only access, and restart;
+configuration is loaded once and is not hot-reloaded. The bot refuses to start
+if the directory or file is missing, writable, linked, or invalid.
+
+## 6. Build and Run
 
 ```bash
 npm run build
@@ -151,7 +207,9 @@ docker run --rm -it \
 docker run -d --name claude-discord --restart unless-stopped \
   --env-file .env \
   --env BASE_PROJECT_DIR=/projects \
+  --env BOT_CONFIG_DIR=/config \
   --mount type=bind,source=/absolute/path/to/projects,target=/projects \
+  --mount type=bind,source=/absolute/path/to/config-directory,target=/config,readonly \
   --mount type=volume,source=claude-discord-home,target=/home/node \
   --mount type=volume,source=claude-discord-data,target=/data \
   "$IMAGE"
@@ -164,9 +222,12 @@ docker compose -f compose.example.yml run --rm bot claude login
 docker compose -f compose.example.yml up -d
 ```
 
-## 6. Use the Bot
+The Compose example reads the host config directory from `BOT_CONFIG_DIR`,
+mounts it at `/config` read-only, and supplies `/config` to the container.
 
-Mention the bot in a registered channel to start a session:
+## 7. Use the Bot
+
+Mention the bot in a channel it can access to start a session:
 
 ```text
 @Claude investigate this test failure
@@ -191,15 +252,14 @@ path within the configured workspace root.
 | `/usage` | Show Claude Code Session, Weekly, and Sonnet usage |
 | `/schedules` | Show recurring schedules |
 
-### Approvals and controls
+### Profiles and controls
 
-- Write, edit, and shell tools require approval through Discord buttons unless
-  channel auto-approval is enabled.
-- Read-only tools are approved automatically.
-- AskUserQuestion prompts appear as Discord controls or a text-input dialog.
+- The exact destination channel or thread selects Restricted or Admin.
+- All non-denied tools execute without Discord approval prompts.
+- `AskUserQuestion` is hidden; Claude asks for clarification in a normal reply.
 - The Stop button cancels only the session represented by its progress message.
 
-## 7. Recurring Schedules
+## 8. Recurring Schedules
 
 Ask the bot to create, update, disable, or delete a schedule. Schedules are
 stored as Markdown files in the gitignored `schedules/` directory and are
@@ -209,16 +269,17 @@ Each schedule requires `name`, a five-field `cron`, a quoted
 `discord_channel`, and a non-empty Markdown prompt. Optional fields include
 `description`, `enabled`, and an IANA `timezone`.
 
-Scheduled turns automatically approve executable tools, including Bash, Write,
-and Edit. Treat schedule creation and the schedules directory as full workspace
-access.
+A scheduled turn uses the profile of its exact destination channel ID. Schedule
+management may target an Admin channel even when requested from a Restricted
+channel; the work and output occur in the destination channel.
 
-## 8. Troubleshooting
+## 9. Troubleshooting
 
 ### The bot does not respond
 
 - Confirm **Message Content Intent** is enabled.
-- Confirm `DISCORD_BOT_TOKEN` and `BASE_PROJECT_DIR` are set in `.env`.
+- Confirm `DISCORD_BOT_TOKEN`, `BASE_PROJECT_DIR`, and `BOT_CONFIG_DIR` are set in `.env`.
+- Confirm `BOT_CONFIG_DIR/config.yaml` passes the strict schema and read-only checks shown at startup.
 - Confirm the bot can view and send messages in the channel.
 
 ### Slash commands are missing
@@ -242,7 +303,7 @@ npm rebuild better-sqlite3
 npm run build
 ```
 
-## 9. Development Checks
+## 10. Development Checks
 
 ```bash
 npm test

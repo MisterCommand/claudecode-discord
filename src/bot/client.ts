@@ -4,7 +4,7 @@ import {
 } from "discord.js";
 import { getConfig } from "../utils/config.js";
 import { handleMessage } from "./handlers/message.js";
-import { handleButtonInteraction, handleModalSubmit, handleSelectMenuInteraction } from "./handlers/interaction.js";
+import { handleButtonInteraction, handleSelectMenuInteraction } from "./handlers/interaction.js";
 import * as statusCmd from "./commands/status.js";
 import * as sessionsCmd from "./commands/sessions.js";
 import * as usageCmd from "./commands/usage.js";
@@ -15,12 +15,25 @@ const commands = [statusCmd, sessionsCmd, usageCmd, schedulesCmd];
 const commandMap = new Collection<string, { execute: (interaction: ChatInputCommandInteraction) => Promise<void> }>();
 for (const command of commands) commandMap.set(command.data.name, command);
 
+async function warnForUnavailableAdminChannels(client: Client, channelIds: string[]): Promise<void> {
+  for (const channelId of channelIds) {
+    try {
+      const channel = await client.channels.fetch(channelId);
+      if (!channel || !channel.isSendable()) console.warn(`Configured Admin channel ${channelId} is unavailable or not sendable.`);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      console.warn(`Could not verify configured Admin channel ${channelId}: ${detail}`);
+    }
+  }
+}
+
 export async function startBot(): Promise<Client> {
   const config = getConfig();
   const client = new Client({ intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMessages, GatewayIntentBits.MessageContent] });
   let schedulerStarted = false;
   client.on("ready", async () => {
     console.log(`Bot logged in as ${client.user?.tag}`);
+    await warnForUnavailableAdminChannels(client, config.access.admin_channels);
     try {
       const rest = new REST({ version: "10" }).setToken(config.DISCORD_BOT_TOKEN);
       const app = await rest.get(Routes.currentApplication()) as { id: string };
@@ -43,7 +56,6 @@ export async function startBot(): Promise<Client> {
         await commandMap.get(interaction.commandName)?.execute(interaction);
       } else if (interaction.isButton()) await handleButtonInteraction(interaction);
       else if (interaction.isStringSelectMenu()) await handleSelectMenuInteraction(interaction);
-      else if (interaction.isModalSubmit()) await handleModalSubmit(interaction);
     } catch (error) {
       console.error("Interaction error:", error);
       if (interaction.isRepliable()) {

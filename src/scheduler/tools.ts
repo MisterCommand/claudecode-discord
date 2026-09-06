@@ -72,10 +72,6 @@ async function accessibleDefinition(context: ScheduleToolContext, identifier: st
   return definition;
 }
 
-export function isScheduleManagementTool(toolName: string): boolean {
-  return /^(?:mcp__discord_scheduler__)?(?:list|create|update|delete)_schedules?$/.test(toolName);
-}
-
 export function createScheduleMcpServer(context: ScheduleToolContext) {
   return createSdkMcpServer({
     name: "discord_scheduler",

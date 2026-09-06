@@ -1,4 +1,4 @@
-export type SessionStatus = "online" | "offline" | "waiting" | "idle";
+export type SessionStatus = "online" | "offline" | "idle";
 
 export interface SessionChain {
   id: string;

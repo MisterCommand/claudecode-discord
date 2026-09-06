@@ -11,6 +11,7 @@ services:
     environment:
       HOME: /home/node
       BASE_PROJECT_DIR: /projects
+      BOT_CONFIG_DIR: /config
     volumes:
       - type: bind
         source: ${BASE_PROJECT_DIR:?Set BASE_PROJECT_DIR in .env}
@@ -21,6 +22,10 @@ services:
       - type: volume
         source: bot-data
         target: /data
+      - type: bind
+        source: ${BOT_CONFIG_DIR:?Set BOT_CONFIG_DIR in .env}
+        target: /config
+        read_only: true
 
 volumes:
   claude-home:

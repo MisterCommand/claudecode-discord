@@ -2,12 +2,9 @@ import { describe, it, expect } from "vitest";
 import {
   formatStreamChunk,
   splitMessage,
-  createToolApprovalEmbed,
   createResultEmbed,
-  createAskUserQuestionEmbed,
   createStopButton,
   createCompletedButton,
-  type AskQuestionData,
 } from "./output-formatter.js";
 
 // ─── formatStreamChunk ───
@@ -117,61 +114,6 @@ describe("splitMessage", () => {
   });
 });
 
-// ─── createToolApprovalEmbed ───
-
-describe("createToolApprovalEmbed", () => {
-  it("creates embed with File field for Edit tool", () => {
-    const result = createToolApprovalEmbed(
-      "Edit",
-      { file_path: "/src/index.ts", old_string: "foo", new_string: "bar" },
-      "req-123",
-    );
-    expect(result.embed.data.title).toBe("🔧 Tool Use: Edit");
-    const fileField = result.embed.data.fields?.find((f) => f.name === "File");
-    expect(fileField?.value).toContain("index.ts");
-    const changesField = result.embed.data.fields?.find((f) => f.name === "Changes");
-    expect(changesField).toBeDefined();
-  });
-
-  it("creates embed with Command field for Bash tool", () => {
-    const { embed } = createToolApprovalEmbed(
-      "Bash",
-      { command: "ls -la", description: "List files" },
-      "req-456",
-    );
-    const cmdField = embed.data.fields?.find((f) => f.name === "Command");
-    expect(cmdField?.value).toContain("ls -la");
-    const descField = embed.data.fields?.find((f) => f.name === "Description");
-    expect(descField?.value).toBe("List files");
-  });
-
-  it("creates approve and deny buttons", () => {
-    const { row: approvalRow } = createToolApprovalEmbed("Write", { file_path: "/a" }, "req-789");
-    const buttons = approvalRow.components;
-    expect(buttons).toHaveLength(2);
-    expect(buttons[0].data).toHaveProperty("custom_id", "approve:req-789");
-    expect(buttons[1].data).toHaveProperty("custom_id", "deny:req-789");
-  });
-
-  it("skips Input field for empty input on generic tool", () => {
-    const { embed } = createToolApprovalEmbed("CustomTool", {}, "req-abc");
-    const inputField = embed.data.fields?.find((f) => f.name === "Input");
-    expect(inputField).toBeUndefined();
-  });
-
-  it("shows Content Preview for Write tool with content", () => {
-    const { embed } = createToolApprovalEmbed(
-      "Write",
-      { file_path: "/a.ts", content: "x".repeat(1000) },
-      "req-w",
-    );
-    const preview = embed.data.fields?.find((f) => f.name === "Content Preview");
-    expect(preview).toBeDefined();
-    // Content sliced to 500 + fence chars
-    expect(preview!.value!.length).toBeLessThanOrEqual(520);
-  });
-});
-
 // ─── createResultEmbed ───
 
 describe("createResultEmbed", () => {
@@ -200,72 +142,6 @@ describe("createResultEmbed", () => {
   it("truncates very long result text to 4000 chars", () => {
     const embed = createResultEmbed("x".repeat(5000), 0, 0);
     expect(embed.data.description!.length).toBeLessThanOrEqual(4000);
-  });
-});
-
-// ─── createAskUserQuestionEmbed ───
-
-describe("createAskUserQuestionEmbed", () => {
-  it("creates single-select with option buttons + custom input button", () => {
-    const data: AskQuestionData = {
-      question: "Pick one",
-      header: "Test",
-      options: [
-        { label: "A", description: "Option A" },
-        { label: "B", description: "Option B" },
-      ],
-      multiSelect: false,
-    };
-    const { embed, components } = createAskUserQuestionEmbed(data, "req-1", 0, 1);
-    expect(embed.data.title).toBe("❓ Test");
-    // 2 option buttons + 1 custom input = 3 buttons in 1 row
-    expect(components).toHaveLength(1);
-    expect(components[0].components).toHaveLength(3);
-  });
-
-  it("creates multi-select with StringSelectMenu + custom input row", () => {
-    const data: AskQuestionData = {
-      question: "Pick many",
-      header: "Multi",
-      options: [
-        { label: "X", description: "desc X" },
-        { label: "Y", description: "desc Y" },
-      ],
-      multiSelect: true,
-    };
-    const { components } = createAskUserQuestionEmbed(data, "req-2", 0, 1);
-    // Row 1: select menu, Row 2: custom input button
-    expect(components).toHaveLength(2);
-    expect(components[0].components[0].data).toHaveProperty("custom_id", "ask-select:req-2");
-  });
-
-  it("shows question index when totalQuestions > 1", () => {
-    const data: AskQuestionData = {
-      question: "Q",
-      header: "H",
-      options: [{ label: "A", description: "" }],
-      multiSelect: false,
-    };
-    const { embed } = createAskUserQuestionEmbed(data, "r", 1, 3);
-    expect(embed.data.title).toContain("(2/3)");
-  });
-
-  it("splits buttons into rows of 5 when many options", () => {
-    const options = Array.from({ length: 7 }, (_, i) => ({
-      label: `Opt${i}`,
-      description: "",
-    }));
-    const data: AskQuestionData = {
-      question: "Q",
-      header: "H",
-      options,
-      multiSelect: false,
-    };
-    const { components } = createAskUserQuestionEmbed(data, "r", 0, 1);
-    // 7 options + 1 custom = 8 buttons -> 2 rows (5 + 3)
-    expect(components).toHaveLength(2);
-    expect(components[0].components).toHaveLength(5);
-    expect(components[1].components).toHaveLength(3);
   });
 });
 

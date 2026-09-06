@@ -16,40 +16,46 @@ npx tsc --noEmit      # Type check only (no build output)
 
 | Test File | Tests | Target Module | Strategy |
 |---|---|---|---|
-| `src/claude/output-formatter.test.ts` | 29 | Message splitting, code block fence handling, Discord embed/button creation | No mocking — pure logic + discord.js constructors work natively |
+| `src/claude/output-formatter.test.ts` | 20 | Message splitting, code block fence handling, result embeds, Stop/completion buttons | No mocking — pure logic + discord.js constructors work natively |
 | `src/security/guard.test.ts` | 12 | Sliding-window rate limiting and BASE_PROJECT_DIR path validation | Mock `getConfig()`, `vi.spyOn(fs)`, `vi.useFakeTimers()` |
-| `src/utils/config.test.ts` | 2 | Required/default config parsing | `vi.resetModules()` + dynamic `import()` per test |
+| `src/security/access-policy.test.ts` | 10 | Exact profile selection, denylist composition, GitHub repository protection, audit records | Pure policy evaluation + stderr spy |
+| `src/utils/config.test.ts` | 17 | Environment/YAML schema, trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
 | `src/db/database.test.ts` | 4 | Conversation-chain and message-mapping CRUD | In-memory SQLite via `better-sqlite3` constructor mock |
 | `src/scheduler/parser.test.ts` | 8 | Markdown/YAML parsing, cron, channels, time zones, IDs, serialization | Pure parsing with Croner validation |
 | `src/scheduler/service.test.ts` | 7 | Schedule CRUD, collisions, invalid edits, duplicate names, channel validation, next-run enumeration, concurrency | Real temporary directories |
-| `src/scheduler/tools.test.ts` | 1 | Scheduler tool permission routing | Pure tool-name classification |
 | `src/bot/commands/schedules.test.ts` | 2 | Empty, valid, and invalid `/schedules` rendering | Mock scheduler statuses |
-| **Total** | **65** | | |
+| **Total** | **80** | | |
 
 ## What Each Test Covers
 
-### output-formatter (29 tests)
+### output-formatter (20 tests)
 
 - **formatStreamChunk**: Truncation at 1900 chars, empty string handling
 - **splitMessage**: Newline-based splitting, forced split for long lines, code block fence preservation (with/without language specifier), multiple code blocks
-- **createToolApprovalEmbed**: Field generation per tool type (Edit, Bash, Write, generic), button customId format, content truncation
 - **createResultEmbed**: Cost display toggle, duration formatting, description truncation
-- **createAskUserQuestionEmbed**: Single-select (buttons), multi-select (StringSelectMenu), question indexing, row splitting (5 buttons per row)
 - **createStopButton / createCompletedButton**: CustomId format, disabled state
 
 ### guard (12 tests)
 
-- **isAllowedUser**: Whitelist match, case sensitivity, empty string rejection
 - **checkRateLimit**: Within-limit requests, over-limit blocking, 60s window reset, per-user independence
 - **validateProjectPath**: Path traversal (`..`) blocking before fs calls, BASE_PROJECT_DIR scope enforcement, non-existent path, non-directory path, valid directory
 
-### config (2 tests)
+### access-policy (10 tests)
 
-- Valid config parsing from `process.env`
-- `ALLOWED_USER_IDS` comma+space splitting
-- `RATE_LIMIT_PER_MINUTE` integer coercion, `SHOW_COST` boolean coercion
-- `process.exit(1)` on missing required variables
-- Singleton caching (same reference on repeated calls)
+- Exact channel/thread ID classification with no inheritance
+- Global plus Restricted-only denylist composition and hidden `AskUserQuestion`
+- Case-insensitive direct target matching across owner/repo, URL, `.git`, paired fields, and `repo:` qualifiers
+- Admin bypass, unscoped and incidental searches, route scoping, and unknown-schema fail-open behavior
+- Minimal JSON audit records without unrelated tool input
+
+### config (17 tests)
+
+- Required environment values and defaults
+- Strict version 1 YAML, required arrays, unknown/duplicate keys, quoted Discord IDs, and unique values
+- Repository and Claude tool-rule syntax
+- Read-only directory/file enforcement, non-owner POSIX checks, symlink/junction rejection, and `BASE_PROJECT_DIR` separation
+- Docker read-only mount detection
+- Required-file failure and load-once/no-hot-reload behavior
 
 ### database (4 tests)
 

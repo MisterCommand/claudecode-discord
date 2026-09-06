@@ -1,0 +1,12 @@
+version: 1
+
+access:
+  admin_channels:
+    - "123456789012345678"
+
+  protected_repositories:
+    - USThing/USThingServer
+
+tools:
+  denied: []
+  restricted_denied: []

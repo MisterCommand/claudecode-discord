@@ -46,10 +46,10 @@ Your Discord Server
 Discord isn't just a chat app — it's a surprisingly perfect fit for controlling AI agents:
 
 - **Already on your phone.** No new app to install, no web UI to bookmark. Open Discord and go.
-- **Push notifications for free.** Get alerted instantly when Claude needs approval or finishes a task — even with the phone locked.
+- **Push notifications for free.** Get alerted instantly when Claude finishes a task or needs a follow-up — even with the phone locked.
 - **Conversation chains = sessions.** Mention the bot for a new session, or reply anywhere in an existing chain to continue it.
 - **Rich UI out of the box.** Buttons, select menus, embeds, file uploads — Discord provides the interactive components, so the bot doesn't need its own frontend.
-- **Team-ready by default.** Invite teammates to your server. They can watch Claude work, approve tool calls, or queue tasks — no extra auth layer needed.
+- **Team-ready by default.** Invite teammates to your server. They can watch Claude work or queue tasks — no extra auth layer needed.
 - **Cross-platform.** Windows, macOS, Linux, iOS, Android, web browser — Discord runs everywhere.
 
 ## Features
@@ -57,8 +57,8 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 - 💰 **No API key** — runs on Claude Code CLI with your Pro or Max subscription
 - 📱 Remote control Claude Code from Discord (desktop/web/mobile)
 - 🔀 Multiple independent conversation-chain sessions in every channel or thread
-- ✅ Tool use approve/deny via Discord button UI
-- ❓ Interactive question UI (selectable options + custom text input)
+- 🛡️ Exact-channel Restricted and Admin access profiles
+- ⚡ Non-denied tools auto-execute without Discord approval prompts
 - ⏹️ Session-specific Stop button and per-chain queueing
 - 📎 File attachments support (images, documents, code files)
 - 🔄 Session resume/delete/new (persist across bot restarts, last conversation preview)
@@ -87,10 +87,18 @@ git clone https://github.com/chadingTV/claudecode-discord.git
 cd claudecode-discord
 npm install
 cp .env.example .env   # Windows PowerShell: Copy-Item .env.example .env
-# Edit .env, then:
+# Edit .env and create the required read-only config.yaml, then:
 npm run build
 npm start
 ```
+
+Copy [config.example.yaml](config.example.yaml) to `config.yaml` in the absolute
+directory named by `BOT_CONFIG_DIR`. That directory must be outside
+`BASE_PROJECT_DIR`, must not be a symlink or junction, and both the directory
+and file must be read-only to the bot process. Invalid configuration prevents
+startup. On POSIX native deployments, the bot must not own these objects; a
+read-only Docker mount also satisfies the check. See [SETUP.md](SETUP.md) for
+native and Docker permission examples.
 
 The optional `install.sh` and `install.bat` scripts perform the same CLI setup
 and build steps. They do not install or launch a desktop application.
@@ -119,7 +127,9 @@ docker volume create claude-discord-data
 docker run -d --name claude-discord --restart unless-stopped \
   --env-file .env \
   --env BASE_PROJECT_DIR=/projects \
+  --env BOT_CONFIG_DIR=/config \
   --mount type=bind,source=/absolute/path/to/projects,target=/projects \
+  --mount type=bind,source=/absolute/path/to/config-directory,target=/config,readonly \
   --mount type=volume,source=claude-discord-home,target=/home/node \
   --mount type=volume,source=claude-discord-data,target=/data \
   "$IMAGE"
@@ -231,16 +241,16 @@ Highlight anything that needs attention.
 - All scheduled work runs in `BASE_PROJECT_DIR`.
 
 > [!WARNING]
-> Schedules are trusted, unattended automations. Scheduled turns automatically approve all executable tools, including Bash, Write, and Edit. Anyone who can ask this bot to create a schedule can establish recurring full-access work in `BASE_PROJECT_DIR`. Scheduled turns cannot create or modify other schedules.
+> Schedules are trusted, unattended automations. A scheduled turn takes the Access Profile of its exact destination channel. Anyone who can manage schedules can target an Admin channel; the execution and output will occur in that Admin channel. Scheduled turns cannot create or modify other schedules.
 
-During a turn, one Discord reply is edited in place with progress and streaming output. Approval and question prompts appear separately and are deleted after resolution. On success, the progress reply becomes the final answer; oversized answers continue in mapped follow-up messages.
+During a turn, one Discord reply is edited in place with progress, the active Access Profile, and streaming output. On success, the progress reply becomes the final answer; oversized answers continue in mapped follow-up messages. If Claude needs clarification, it asks in its normal response and waits for the next Discord message.
 
 ### In-Progress Controls
 
 - **Stop** cancels only the session shown on that progress message.
 - Different chains can run concurrently in the same channel.
 - Messages targeting a busy chain are queued for that chain.
-- Any user with channel access can continue sessions and use approval, question, stop, and deletion controls.
+- Any user with channel access can continue, stop, or delete sessions.
 <details>
 <summary><strong>Architecture</strong></summary>
 
@@ -252,12 +262,12 @@ During a turn, one Discord reply is edited in place with progress and streaming 
 
 - Independent sessions per Discord conversation chain
 - Claude Agent SDK runs Claude Code as subprocess (shares existing auth)
-- Write and shell tools require Discord approval
+- All non-denied tools execute automatically under the channel's Access Profile
 - A single progress reply is edited during streaming and becomes the final answer
 - Heartbeat progress display every 15s until text output begins
 - Markdown code blocks preserved across message splits
 
-**Session States:** 🟢 working · 🟡 waiting for approval · ⚪ idle · 🔴 offline
+**Session States:** 🟢 working · ⚪ idle · 🔴 offline
 
 </details>
 
@@ -279,20 +289,60 @@ The bot runs entirely on your own PC/server. No external servers involved, and n
 ### Access Control
 
 - Access follows Discord channel and thread permissions
+- Exact IDs in `access.admin_channels` use the Admin profile; every other channel or thread uses Restricted
+- Threads do not inherit Admin status from parent channels
+- Admin receives all Restricted capabilities plus tools denied only to Restricted
 - Per-user request rate limiting remains enabled
 - All agent work is fixed to `BASE_PROJECT_DIR`
 
 ### Execution Protection
 
-- Tool use default: file modifications, command execution, etc. **require user approval each time** (Discord buttons)
+- Both profiles run in bypass mode: every non-denied tool auto-executes without Discord approval
+- `tools.denied` hides tools from both profiles; `tools.restricted_denied` adds Restricted-only denials
+- `AskUserQuestion` is always hidden; questions are ordinary Discord responses
+- Restricted turns deny reviewed `mcp__github__*` calls that directly target a configured Protected Repository
+- Protected-repository matching is exact and case-insensitive and recognizes `owner`/`repo`, repository URLs, and `repo:` search qualifiers
+- Unscoped GitHub searches, `search_repositories`, incidental mentions, and unknown GitHub tool schemas are allowed
 - Path traversal (`..`) blocked
 - File attachments: executable files (.exe, .bat, etc.) blocked, 25MB size limit
+
+Protected-repository enforcement applies only to the MCP server named `github`.
+It does not block access through Bash, WebFetch, another MCP alias, or another
+route. Add those tools to a denylist if the Restricted profile must not use
+them. Denied protected-repository attempts are shown in Discord and logged as
+minimal JSON records on stderr.
+
+### Required bot configuration
+
+The bot reads `BOT_CONFIG_DIR/config.yaml` once during startup; there is no hot
+reload. The schema is strict: unknown or duplicate keys, missing arrays,
+unquoted Discord IDs, duplicate repositories/rules, or unsupported versions are
+fatal. MCP connectivity and configured Admin channel existence are not startup
+requirements; inaccessible Admin IDs produce warnings after Discord connects.
+GitHub MCP connection details and credentials stay in Claude Code's existing MCP
+configuration; this YAML contains only bot policy and assumes that server is
+named `github`.
+
+```yaml
+version: 1
+
+access:
+  admin_channels:
+    - "123456789012345678"
+  protected_repositories:
+    - USThing/USThingServer
+
+tools:
+  denied: []
+  restricted_denied: []
+```
 
 ### Precautions
 
 - The `.env` file contains your bot token — **never share it publicly.** If compromised, immediately Reset Token in Discord Developer Portal
-- Every write or shell action requires explicit approval from a user who can access the channel
-- Scheduled turns are the exception: their executable tools are auto-approved so they can finish unattended. Treat access to schedule creation and the local `schedules/` directory as full workspace access.
+- Treat every channel user as authorized for all non-denied tools available to that channel's profile
+- Keep `BOT_CONFIG_DIR` outside the agent workspace and read-only to the bot process
+- Treat access to schedule creation and the local `schedules/` directory as authority to schedule work in any visible destination channel
 
 ## Running the Bot
 

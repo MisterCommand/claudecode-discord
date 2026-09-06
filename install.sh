@@ -55,5 +55,6 @@ echo
 
 echo "Setup complete."
 echo "  1. Confirm .env is configured."
-echo "  2. Authenticate Claude Code with: claude"
-echo "  3. Start the bot in the foreground with: npm start"
+echo "  2. Create BOT_CONFIG_DIR/config.yaml from config.example.yaml and make both read-only."
+echo "  3. Authenticate Claude Code with: claude"
+echo "  4. Start the bot in the foreground with: npm start"

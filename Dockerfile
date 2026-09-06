@@ -24,7 +24,8 @@ ARG TARGETARCH
 
 ENV NODE_ENV=production \
     HOME=/home/node \
-    BASE_PROJECT_DIR=/projects
+    BASE_PROJECT_DIR=/projects \
+    BOT_CONFIG_DIR=/config
 
 WORKDIR /app
 
