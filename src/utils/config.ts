@@ -54,6 +54,13 @@ const envSchema = z.object({
   DISCORD_GUILD_ID: z.string().optional(),
   BASE_PROJECT_DIR: z.string().min(1, "BASE_PROJECT_DIR is required"),
   BOT_CONFIG_DIR: z.string().min(1, "BOT_CONFIG_DIR is required"),
+  HONEYCOMB_API_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
+  HONEYCOMB_API_ENDPOINT: z
+    .enum(["https://api.honeycomb.io", "https://api.eu1.honeycomb.io"])
+    .default("https://api.honeycomb.io"),
   RATE_LIMIT_PER_MINUTE: z.coerce.number().int().positive().default(10),
   SHOW_COST: z
     .enum(["true", "false"])

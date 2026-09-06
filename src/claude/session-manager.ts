@@ -1,4 +1,6 @@
-import { query, type HookCallback, type Query } from "@anthropic-ai/claude-agent-sdk";
+import {
+  query, type HookCallback, type Query, type SDKResultMessage,
+} from "@anthropic-ai/claude-agent-sdk";
 import path from "node:path";
 import { escapeMarkdown, type Message, type SendableChannels } from "discord.js";
 import { getConfig } from "../utils/config.js";
@@ -8,6 +10,9 @@ import {
   evaluateProtectedRepositoryAccess, profileLabel, snapshotAccessPolicy, writeToolDenialAudit,
   type AccessPolicySnapshot,
 } from "../security/access-policy.js";
+import {
+  agentTelemetryEnvironment, type TurnObservation,
+} from "../observability/telemetry.js";
 import {
   createScheduleMcpServer, type ScheduleToolContext,
 } from "../scheduler/tools.js";
@@ -19,6 +24,7 @@ export interface TurnRequest {
   chain: SessionChain;
   channel: SendableChannels;
   prompt: string;
+  observation: TurnObservation;
   replyTo?: Message;
   statusMessage?: Message;
   source?: "interactive" | "schedule";
@@ -48,27 +54,41 @@ class SessionManager {
       ...request,
       accessPolicy: snapshotAccessPolicy(request.channel.id, getConfig()),
     };
+    request.observation.setAccessProfile(resolvedRequest.accessPolicy.profile);
     const profile = profileLabel(resolvedRequest.accessPolicy.profile);
-    if (this.active.has(request.chain.id)) {
-      const content = `⏳ Queued for **${request.chain.label}** (${(this.queues.get(request.chain.id)?.length ?? 0) + 1})  •  ${profile} profile`;
-      const status = request.replyTo ? await request.replyTo.reply({
-        content,
-        allowedMentions: { repliedUser: false },
-      }) : await request.channel.send({
-        content,
-        allowedMentions: { parse: [] },
-      });
-      mapMessage(status.id, request.chain.id);
-      const queue = this.queues.get(request.chain.id) ?? [];
-      queue.push({ ...resolvedRequest, statusMessage: status });
-      this.queues.set(request.chain.id, queue);
-      return;
+    try {
+      if (this.active.has(request.chain.id)) {
+        const position = (this.queues.get(request.chain.id)?.length ?? 0) + 1;
+        request.observation.markQueued(position);
+        const content = `⏳ Queued for **${request.chain.label}** (${position})  •  ${profile} profile`;
+        const status = request.replyTo ? await request.replyTo.reply({
+          content,
+          allowedMentions: { repliedUser: false },
+        }) : await request.channel.send({
+          content,
+          allowedMentions: { parse: [] },
+        });
+        mapMessage(status.id, request.chain.id);
+        const queue = this.queues.get(request.chain.id) ?? [];
+        queue.push({ ...resolvedRequest, statusMessage: status });
+        this.queues.set(request.chain.id, queue);
+        return;
+      }
+      await this.runTurn(resolvedRequest);
+    } catch (error) {
+      request.observation.finish(
+        "error",
+        request.source === "interactive" ? "An error occurred while processing your message." : undefined,
+        error,
+      );
+      throw error;
     }
-    await this.runTurn(resolvedRequest);
   }
 
   private async runTurn(request: ResolvedTurnRequest): Promise<void> {
     const { chain, channel, prompt } = request;
+    request.observation.beginExecution();
+    const config = getConfig();
     const scheduled = request.source === "schedule";
     const profile = profileLabel(request.accessPolicy.profile);
     const profileSuffix = `Access profile: ${profile}`;
@@ -89,6 +109,7 @@ class SessionManager {
     let lastActivity = "Thinking…";
     let toolCount = 0;
     let hasResult = false;
+    let agentResultError = false;
     let attemptedResume = Boolean(chain.session_id);
     const startedAt = Date.now();
     const blockedNotices = new Map<string, string>();
@@ -116,6 +137,7 @@ class SessionManager {
       if (input.hook_event_name !== "PreToolUse") return {};
 
       toolCount++;
+      request.observation.recordToolUse(input.tool_name);
       const names: Record<string, string> = { Read: "Reading files", Glob: "Searching files", Grep: "Searching code", Write: "Writing file", Edit: "Editing file", Bash: "Running command", WebSearch: "Searching web", WebFetch: "Fetching URL", TodoWrite: "Updating tasks" };
       lastActivity = names[input.tool_name] ?? `Using ${input.tool_name}`;
       await editStatus(`${scheduleHeader}⏳ ${lastActivity}  •  **${chain.label}**  •  ${profile} profile`);
@@ -153,9 +175,13 @@ class SessionManager {
             ...process.env,
             ANTHROPIC_API_KEY: undefined,
             PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ""}`,
+            ...agentTelemetryEnvironment(config),
           },
+          ...(config.HONEYCOMB_API_KEY ? {
+            stderr: (data: string) => console.warn(`[claude:${chain.label}] ${data.trimEnd()}`),
+          } : {}),
           ...(resume && chain.session_id ? { resume: chain.session_id } : {}),
-          ...(getConfig().CLAUDE_MODEL ? { model: getConfig().CLAUDE_MODEL } : {}),
+          ...(config.CLAUDE_MODEL ? { model: config.CLAUDE_MODEL } : {}),
           systemPrompt: {
             type: "preset",
             preset: "claude_code",
@@ -166,7 +192,7 @@ class SessionManager {
       });
     };
 
-    let queryInstance = runQuery(attemptedResume);
+    let queryInstance = request.observation.run(() => runQuery(attemptedResume));
     this.active.set(chain.id, { queryInstance, statusMessage, stopped: false });
 
     try {
@@ -191,8 +217,21 @@ class SessionManager {
             }
             if ("result" in sdkMessage) {
               hasResult = true;
-              const msg = sdkMessage as { result?: string };
-              if (msg.result) responseBuffer = msg.result;
+              const msg = sdkMessage as SDKResultMessage;
+              agentResultError = msg.is_error;
+              request.observation.recordAgentResult({
+                durationMs: msg.duration_ms,
+                apiDurationMs: msg.duration_api_ms,
+                numTurns: msg.num_turns,
+                costUsd: msg.total_cost_usd,
+                inputTokens: msg.usage.input_tokens,
+                outputTokens: msg.usage.output_tokens,
+                cacheCreationTokens: msg.usage.cache_creation_input_tokens,
+                cacheReadTokens: msg.usage.cache_read_input_tokens,
+                isError: msg.is_error,
+                subtype: msg.subtype,
+              });
+              if ("result" in msg && msg.result) responseBuffer = msg.result;
             }
           }
           break;
@@ -204,7 +243,7 @@ class SessionManager {
           chain.session_id = null;
           updateChainSession(chain.id, null);
           await editStatus(`⚠️ The old session is no longer available. Starting a new session…  •  **${chain.label}**  •  ${profile} profile`);
-          queryInstance = runQuery(false);
+          queryInstance = request.observation.run(() => runQuery(false));
           continue retry;
         }
       }
@@ -213,14 +252,17 @@ class SessionManager {
       const body = [responseBuffer.trim() || "Done.", notices.length ? `\n${notices.join("\n")}` : ""].filter(Boolean).join("\n");
       const finalText = scheduled ? `${scheduleHeader}\n${body}` : body;
       const chunks = splitMessage(finalText);
-      for (let index = 0; index < chunks.length; index++) {
-        const content = `${chunks[index]}\n\n-# Session ${chain.label} • ${profileSuffix}`;
-        const finalMessage = index === 0
-          ? await statusMessage.edit({ content, components: [] })
-          : await channel.send({ content });
-        mapMessage(finalMessage.id, chain.id);
-      }
+      await request.observation.runChild("claudecode_discord.response.publish", async () => {
+        for (let index = 0; index < chunks.length; index++) {
+          const content = `${chunks[index]}\n\n-# Session ${chain.label} • ${profileSuffix}`;
+          const finalMessage = index === 0
+            ? await statusMessage.edit({ content, components: [] })
+            : await channel.send({ content });
+          mapMessage(finalMessage.id, chain.id);
+        }
+      }, { "discord.response.chunk_count": chunks.length });
       updateChainStatus(chain.id, "idle");
+      request.observation.finish(agentResultError ? "error" : "success", finalText);
     } catch (error) {
       const stopped = this.active.get(chain.id)?.stopped;
       const raw = error instanceof Error ? error.message : "Unknown error";
@@ -228,15 +270,27 @@ class SessionManager {
         ? "\n\n🔑 Run `claude login` on the host computer, then try again." : "";
       const notices = [...blockedNotices.values()];
       const blocked = notices.length ? `\n\n${notices.join("\n")}` : "";
-      await statusMessage.edit({ content: stopped ? `${scheduleHeader}⏹️ Stopped${blocked}\n\n-# Session ${chain.label} • ${profileSuffix}` : `${scheduleHeader}❌ ${raw}${auth}${blocked}\n\n-# Session ${chain.label} • ${profileSuffix}`, components: [] });
-      updateChainStatus(chain.id, stopped ? "idle" : "offline");
+      const response = stopped
+        ? `${scheduleHeader}⏹️ Stopped${blocked}`
+        : `${scheduleHeader}❌ ${raw}${auth}${blocked}`;
+      try {
+        await request.observation.runChild("claudecode_discord.response.publish", async () => {
+          await statusMessage.edit({ content: `${response}\n\n-# Session ${chain.label} • ${profileSuffix}`, components: [] });
+        });
+      } finally {
+        updateChainStatus(chain.id, stopped ? "idle" : "offline");
+        request.observation.finish(stopped ? "stopped" : "error", response, stopped ? undefined : error);
+      }
     } finally {
       clearInterval(heartbeat);
       this.active.delete(chain.id);
       const queue = this.queues.get(chain.id);
       const next = queue?.shift();
       if (!queue?.length) this.queues.delete(chain.id);
-      if (next) void this.runTurn({ ...next, chain: getChain(chain.id) ?? next.chain });
+      if (next) void this.runTurn({ ...next, chain: getChain(chain.id) ?? next.chain }).catch((error) => {
+        next.observation.finish("error", undefined, error);
+        console.error(`[queue:${next.chain.label}]`, error);
+      });
     }
   }
 

@@ -3,11 +3,22 @@ import { loadConfig } from "./utils/config.js";
 import { initDatabase } from "./db/database.js";
 import { startBot } from "./bot/client.js";
 import { scheduleService } from "./scheduler/service.js";
+import { initializeTelemetry, shutdownTelemetry } from "./observability/telemetry.js";
+
+let shuttingDown = false;
+
+async function shutdown(exitCode: number): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  scheduleService.stop();
+  await shutdownTelemetry();
+  process.exit(exitCode);
+}
 
 async function main() {
   process.on("exit", () => { scheduleService.stop(); });
-  process.on("SIGINT", () => { scheduleService.stop(); process.exit(0); });
-  process.on("SIGTERM", () => { scheduleService.stop(); process.exit(0); });
+  process.on("SIGINT", () => { void shutdown(0); });
+  process.on("SIGTERM", () => { void shutdown(0); });
 
   // Global error handlers — prevent silent hangs from unhandled errors
   process.on("unhandledRejection", (reason) => {
@@ -21,8 +32,9 @@ async function main() {
   console.log("Starting Claude Code Discord Controller...");
 
   // Load and validate config
-  loadConfig();
+  const config = loadConfig();
   console.log("Config loaded");
+  initializeTelemetry(config);
 
   // Initialize database
   initDatabase();
@@ -33,7 +45,7 @@ async function main() {
   console.log("Bot is running!");
 }
 
-main().catch((error) => {
+main().catch(async (error) => {
   console.error("Fatal error:", error);
-  process.exit(1);
+  await shutdown(1);
 });

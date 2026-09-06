@@ -101,6 +101,8 @@ BOT_CONFIG_DIR=/Users/yourname/claude-discord-config
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
 # CLAUDE_MODEL=claude-sonnet-4-6
+# HONEYCOMB_API_KEY=your_ingest_key
+HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 ```
 
 | Variable | Description |
@@ -112,6 +114,14 @@ SHOW_COST=true
 | `RATE_LIMIT_PER_MINUTE` | Per-user message limit; defaults to `10` |
 | `SHOW_COST` | Show estimated task cost; defaults to `true` |
 | `CLAUDE_MODEL` | Optional Claude model override |
+| `HONEYCOMB_API_KEY` | Optional Honeycomb ingest key; leaving it blank disables observability export |
+| `HONEYCOMB_API_ENDPOINT` | Honeycomb ingest base URL; defaults to the US endpoint, or use `https://api.eu1.honeycomb.io` for EU |
+
+Enabling Honeycomb exports raw Discord identifiers plus the constructed prompt
+and final Claude response, each capped at 60 KB. Claude's built-in telemetry may
+also identify the authenticated Claude account and workspace host paths. Tool
+inputs, tool outputs, and raw API bodies remain disabled. See the observability
+section in [README.md](README.md) before enabling it.
 
 To copy a server ID, enable **Developer Mode** in Discord's advanced settings,
 then right-click the server name or long-press it on mobile.

@@ -28,6 +28,14 @@ _Avoid_: Agent-editable channel list
 Trusted, non-secret policy required for the bot to operate. It supplements deployment environment settings and remains outside every agent's authority.
 _Avoid_: Project configuration, agent configuration
 
+**Turn**:
+A single unit of agent work within a Session Chain, originating from either an interactive Discord request or one occurrence of a Schedule.
+_Avoid_: Request, run, task execution
+
+**Conversation Content**:
+The constructed Discord prompt supplied to Claude and the final response returned for a Turn. It excludes tool inputs, tool outputs, and raw model traffic.
+_Avoid_: Tool content, raw API bodies
+
 **Protected Repository**:
 A remote source repository that the Restricted Access Profile must not target directly through recognized GitHub integration inputs, identified by an exact, case-insensitive owner and repository name. Incidental search results and unrecognized GitHub tool schemas are permitted.
 _Avoid_: Blocked project, forbidden URL

@@ -284,7 +284,11 @@ This bot:            Bot → [Connects to Discord] → Receives events         (
 
 ### Self-Hosted Architecture
 
-The bot runs entirely on your own PC/server. No external servers involved, and no data leaves your machine except through Discord and the Anthropic API (which uses your own Claude Code login session).
+The bot runs entirely on your own PC/server. With optional Honeycomb
+observability disabled, no data leaves your machine except through Discord and
+the Anthropic API (which uses your own Claude Code login session). When
+Honeycomb is enabled, the telemetry described below is also sent directly to
+the configured Honeycomb environment.
 
 ### Access Control
 
@@ -343,6 +347,40 @@ tools:
 - Treat every channel user as authorized for all non-denied tools available to that channel's profile
 - Keep `BOT_CONFIG_DIR` outside the agent workspace and read-only to the bot process
 - Treat access to schedule creation and the local `schedules/` directory as authority to schedule work in any visible destination channel
+
+## Optional Honeycomb observability
+
+Set a Honeycomb ingest key to export OpenTelemetry data directly over HTTPS. If
+the key is absent or blank, telemetry is a no-op and existing native and Docker
+workflows behave as before.
+
+```env
+HONEYCOMB_API_KEY=your_ingest_key
+# Use https://api.eu1.honeycomb.io for a Honeycomb EU environment.
+HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
+```
+
+The bot exports stable end-to-end Turn traces and operational metrics under the
+`claude-code-discord-controller` service. Claude Code exports its built-in
+traces, metrics, and structured events under `claude-code-discord-agent`; its
+model and tool spans are linked beneath the bot Turn trace. No collector or
+inbound port is required.
+
+> [!IMPORTANT]
+> Telemetry includes raw Discord guild, channel, user, and message IDs. It also
+> includes the constructed prompt and final Claude response. Each content value
+> is capped at 60 KB, preserving its beginning and end while recording whether
+> truncation occurred. Tool inputs, tool outputs, and raw Anthropic API bodies
+> are not exported. Claude's built-in signal attributes may also include the
+> authenticated Claude account identity and workspace host paths. Only enable
+> this integration when your Honeycomb environment is approved to store the
+> content and identities handled by the bot.
+
+The dedicated Honeycomb key is removed from the Claude subprocess environment.
+The generated `OTEL_*` authentication header reaches Claude Code's telemetry
+exporter, and Claude Code withholds `OTEL_*` variables from Bash commands,
+hooks, MCP servers, and language servers launched by the agent. Export failures
+do not stop a Turn; diagnostics remain visible in the bot's foreground logs.
 
 ## Running the Bot
 

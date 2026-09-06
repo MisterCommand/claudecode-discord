@@ -47,6 +47,26 @@ describe("environment configuration", () => {
     });
     expect(parsed.BOT_CONFIG_DIR).toBe("/bot-config");
     expect(parsed.RATE_LIMIT_PER_MINUTE).toBe(10);
+    expect(parsed.HONEYCOMB_API_KEY).toBeUndefined();
+    expect(parsed.HONEYCOMB_API_ENDPOINT).toBe("https://api.honeycomb.io");
+  });
+
+  it("accepts Honeycomb US and EU endpoints and treats a blank key as disabled", () => {
+    const base = {
+      DISCORD_BOT_TOKEN: "token",
+      BASE_PROJECT_DIR: "/projects",
+      BOT_CONFIG_DIR: "/bot-config",
+    };
+    expect(parseEnvironment({
+      ...base,
+      HONEYCOMB_API_KEY: "  ",
+      HONEYCOMB_API_ENDPOINT: "https://api.eu1.honeycomb.io",
+    })).toMatchObject({
+      HONEYCOMB_API_KEY: undefined,
+      HONEYCOMB_API_ENDPOINT: "https://api.eu1.honeycomb.io",
+    });
+    expect(() => parseEnvironment({ ...base, HONEYCOMB_API_ENDPOINT: "https://example.com" }))
+      .toThrow(/HONEYCOMB_API_ENDPOINT/);
   });
 
   it("rejects a missing BOT_CONFIG_DIR", () => {
