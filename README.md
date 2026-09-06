@@ -367,16 +367,22 @@ model and tool spans are linked beneath the bot Turn trace. No collector or
 inbound port is required.
 
 > [!IMPORTANT]
-> Telemetry includes raw Discord guild, channel, user, and message IDs. It also
-> includes the constructed prompt and final Claude response. Each content value
-> is capped at 60 KB, preserving its beginning and end while recording whether
-> truncation occurred. Tool inputs, tool outputs, and raw Anthropic API bodies
-> are not exported. Claude's built-in signal attributes may also include the
-> authenticated Claude account identity and workspace host paths. Only enable
-> this integration when your Honeycomb environment is approved to store the
-> content and identities handled by the bot.
+> Telemetry includes raw Discord guild, channel, user, and message IDs; the
+> constructed prompt and final Discord response; Claude user prompts and
+> intermediate assistant responses; tool names, parameters, inputs, and
+> outputs; and the raw Anthropic Messages API request and response bodies. Raw
+> request bodies can contain the system prompt, complete conversation history,
+> and tool definitions. Content-bearing values are capped at approximately 60
+> KB. The bot-owned prompt and response preserve their beginning and end while
+> recording whether truncation occurred. Extended-thinking content remains
+> redacted by Claude Code. Claude's built-in signal attributes may also include
+> the authenticated Claude account identity and workspace host paths. Only
+> enable this integration when your Honeycomb environment is approved to store
+> all content and identities handled by the bot.
 
-The dedicated Honeycomb key is removed from the Claude subprocess environment.
+Raw API bodies are exported inline to Honeycomb rather than written to local
+files. The dedicated Honeycomb key is removed from the Claude subprocess
+environment.
 The generated `OTEL_*` authentication header reaches Claude Code's telemetry
 exporter, and Claude Code withholds `OTEL_*` variables from Bash commands,
 hooks, MCP servers, and language servers launched by the agent. Export failures

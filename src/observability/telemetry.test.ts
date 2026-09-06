@@ -27,7 +27,7 @@ describe("conversation content capture", () => {
 });
 
 describe("Claude telemetry environment", () => {
-  it("enables all Claude signals without exposing the dedicated Honeycomb key", () => {
+  it("enables all Claude signals and execution content without exposing the dedicated Honeycomb key", () => {
     const environment = agentTelemetryEnvironment({
       HONEYCOMB_API_KEY: "secret-key",
       HONEYCOMB_API_ENDPOINT: "https://api.eu1.honeycomb.io",
@@ -39,9 +39,12 @@ describe("Claude telemetry environment", () => {
     expect(environment.OTEL_LOGS_EXPORTER).toBe("otlp");
     expect(environment.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT).toBe("https://api.eu1.honeycomb.io/v1/traces");
     expect(environment.OTEL_EXPORTER_OTLP_HEADERS).toBe("x-honeycomb-team=secret-key");
-    expect(environment.OTEL_LOG_USER_PROMPTS).toBeUndefined();
-    expect(environment.OTEL_LOG_TOOL_CONTENT).toBeUndefined();
-    expect(environment.OTEL_LOG_RAW_API_BODIES).toBeUndefined();
+    expect(environment.OTEL_LOG_USER_PROMPTS).toBe("1");
+    expect(environment.OTEL_LOG_ASSISTANT_RESPONSES).toBe("1");
+    expect(environment.OTEL_LOG_TOOL_DETAILS).toBe("1");
+    expect(environment.OTEL_LOG_TOOL_CONTENT).toBe("1");
+    expect(environment.OTEL_LOG_RAW_API_BODIES).toBe("1");
+    expect(environment.CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH).toBe("61440");
   });
 
   it("does not activate Claude telemetry without a Honeycomb key", () => {

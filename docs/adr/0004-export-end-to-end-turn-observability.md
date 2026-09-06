@@ -4,4 +4,4 @@ When explicitly enabled, each accepted Discord or scheduled Turn is represented 
 
 ## Consequences
 
-Conversation Content and raw Discord correlation identifiers are intentionally exported. Prompt and final-response values preserve their beginning and end within a 60 KB limit; tool inputs, tool outputs, and raw model traffic remain excluded. Honeycomb is opt-in and export failures do not prevent Turns, while the accepted beta Claude span schema is treated as external and no bot behavior depends on its exact fields.
+Conversation Content and raw Discord correlation identifiers are intentionally exported. Prompt and final-response values preserve their beginning and end within a 60 KB limit. Claude Code additionally exports user prompts, intermediate assistant responses, tool parameters and input/output content, and inline raw Anthropic Messages API request/response bodies at its approximately 60 KB content limit; extended-thinking content remains redacted. Honeycomb is opt-in and export failures do not prevent Turns, while the accepted beta Claude span schema is treated as external and no bot behavior depends on its exact fields.

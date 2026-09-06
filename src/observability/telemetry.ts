@@ -151,12 +151,14 @@ export function agentTelemetryEnvironment(config: Config): NodeJS.ProcessEnv {
     OTEL_METRIC_EXPORT_INTERVAL: "15000",
     OTEL_LOGS_EXPORT_INTERVAL: "5000",
     OTEL_TRACES_EXPORT_INTERVAL: "5000",
-    // Conversation Content is captured once on the stable bot-owned Turn span.
-    // These gates would duplicate it or expand collection to tool/raw traffic.
-    OTEL_LOG_USER_PROMPTS: undefined,
-    OTEL_LOG_TOOL_DETAILS: undefined,
-    OTEL_LOG_TOOL_CONTENT: undefined,
-    OTEL_LOG_RAW_API_BODIES: undefined,
+    // Export full Claude execution content. Raw API bodies use inline mode so
+    // they reach Honeycomb rather than being written to host-local files.
+    OTEL_LOG_USER_PROMPTS: "1",
+    OTEL_LOG_ASSISTANT_RESPONSES: "1",
+    OTEL_LOG_TOOL_DETAILS: "1",
+    OTEL_LOG_TOOL_CONTENT: "1",
+    OTEL_LOG_RAW_API_BODIES: "1",
+    CLAUDE_CODE_OTEL_CONTENT_MAX_LENGTH: "61440",
   };
 }
 

@@ -117,10 +117,13 @@ HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 | `HONEYCOMB_API_KEY` | Optional Honeycomb ingest key; leaving it blank disables observability export |
 | `HONEYCOMB_API_ENDPOINT` | Honeycomb ingest base URL; defaults to the US endpoint, or use `https://api.eu1.honeycomb.io` for EU |
 
-Enabling Honeycomb exports raw Discord identifiers plus the constructed prompt
-and final Claude response, each capped at 60 KB. Claude's built-in telemetry may
-also identify the authenticated Claude account and workspace host paths. Tool
-inputs, tool outputs, and raw API bodies remain disabled. See the observability
+Enabling Honeycomb exports raw Discord identifiers, prompts and assistant
+responses, tool parameters and input/output content, and inline raw Anthropic
+Messages API request/response bodies. Raw requests can contain the system
+prompt, complete conversation history, and tool definitions. Content-bearing
+values are capped at approximately 60 KB; extended-thinking content remains
+redacted by Claude Code. Claude's built-in telemetry may also identify the
+authenticated Claude account and workspace host paths. See the observability
 section in [README.md](README.md) before enabling it.
 
 To copy a server ID, enable **Developer Mode** in Discord's advanced settings,
