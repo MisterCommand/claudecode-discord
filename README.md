@@ -236,7 +236,7 @@ Highlight anything that needs attention.
 - `name`, `cron`, `discord_channel`, and a non-empty Markdown prompt are required. Channel IDs must be quoted so YAML does not round large Discord IDs.
 - Cron expressions use exactly five fields: minute, hour, day of month, month, and day of week.
 - `enabled` defaults to `true`. `description` and `timezone` are optional.
-- Without `timezone`, the host machine's local time zone is used. Docker hosts commonly use UTC, so set an IANA zone when wall-clock time matters.
+- Without `timezone`, schedules use `Asia/Hong_Kong` (HKT). Explicit timezones must be valid IANA names.
 - Occurrences missed while the bot is offline are skipped. Overlapping occurrences are allowed and run as separate sessions.
 - All scheduled work runs in `BASE_PROJECT_DIR`.
 

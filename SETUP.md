@@ -280,7 +280,8 @@ reloaded while the bot is running.
 
 Each schedule requires `name`, a five-field `cron`, a quoted
 `discord_channel`, and a non-empty Markdown prompt. Optional fields include
-`description`, `enabled`, and an IANA `timezone`.
+`description`, `enabled`, and an IANA `timezone`. If `timezone` is omitted,
+the schedule uses `Asia/Hong_Kong` (HKT).
 
 A scheduled turn uses the profile of its exact destination channel ID. Schedule
 management may target an Admin channel even when requested from a Restricted

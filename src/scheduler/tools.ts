@@ -54,7 +54,7 @@ function describeSchedule(definition: ScheduleDefinition): string {
     `${definition.name} (${definition.id})`,
     `Cron: ${definition.cron}`,
     `Channel: ${definition.discordChannel}`,
-    `Time zone: ${effectiveTimezone(definition.timezone)}${definition.timezone ? "" : " (host local)"}`,
+    `Time zone: ${effectiveTimezone(definition.timezone)}`,
     `Enabled: ${definition.enabled ? "yes" : "no"}`,
   ];
   if (definition.enabled) {
@@ -92,7 +92,7 @@ export function createScheduleMcpServer(context: ScheduleToolContext) {
           return textResult(error instanceof Error ? error.message : String(error), true);
         }
       }),
-      tool("create_schedule", "Create a recurring schedule. Use a standard five-field cron expression. Omit timezone to use host local time and omit discord_channel to use the current channel.", {
+      tool("create_schedule", "Create a recurring schedule. Use a standard five-field cron expression. Omit timezone to use Asia/Hong_Kong (HKT) and omit discord_channel to use the current channel.", {
         name: z.string().min(1).max(100),
         description: z.string().max(500).optional(),
         cron: z.string().min(1),
@@ -112,7 +112,7 @@ export function createScheduleMcpServer(context: ScheduleToolContext) {
           return textResult(error instanceof Error ? error.message : String(error), true);
         }
       }),
-      tool("update_schedule", "Update an existing schedule by its filename ID or exact name. Omitted fields remain unchanged; null removes description or timezone.", {
+      tool("update_schedule", "Update an existing schedule by its filename ID or exact name. Omitted fields remain unchanged; null removes the description or resets the timezone to Asia/Hong_Kong (HKT).", {
         schedule: z.string().min(1),
         name: z.string().min(1).max(100).optional(),
         description: z.string().max(500).nullable().optional(),

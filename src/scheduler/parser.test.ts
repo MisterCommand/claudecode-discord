@@ -32,9 +32,9 @@ describe("schedule Markdown parser", () => {
     expect(parsed.sourceHash).toHaveLength(64);
   });
 
-  it("supports CRLF and defaults enabled to true", () => {
+  it("supports CRLF, defaults enabled to true, and defaults timezone to HKT", () => {
     const source = `---\r\nname: Test\r\ncron: "15 9 * * 1"\r\ndiscord_channel: "123456789012345678"\r\n---\r\n\r\nPrompt\r\n`;
-    expect(parseScheduleFile("test.md", source)).toMatchObject({ enabled: true, prompt: "Prompt" });
+    expect(parseScheduleFile("test.md", source)).toMatchObject({ enabled: true, timezone: "Asia/Hong_Kong", prompt: "Prompt" });
   });
 
   it("rejects malformed YAML and missing front matter", () => {
@@ -67,13 +67,15 @@ describe("schedule Markdown parser", () => {
       prompt: "Review the week.",
     });
     expect(parseScheduleFile("weekly-review.md", source)).toMatchObject({
-      name: "Weekly review", enabled: true, prompt: "Review the week.", timezone: undefined,
+      name: "Weekly review", enabled: true, prompt: "Review the week.", timezone: "Asia/Hong_Kong",
     });
+    expect(source).toContain("timezone: Asia/Hong_Kong");
   });
 
-  it("creates safe IDs and reports the effective host zone", () => {
+  it("creates safe IDs and reports the effective default zone", () => {
     expect(scheduleIdFromName("  Café & Weekly Review  ")).toBe("cafe-weekly-review");
     expect(() => scheduleIdFromName("週報")).toThrow(/ASCII/);
-    expect(effectiveTimezone()).toBeTruthy();
+    expect(effectiveTimezone()).toBe("Asia/Hong_Kong");
+    expect(effectiveTimezone("America/New_York")).toBe("America/New_York");
   });
 });

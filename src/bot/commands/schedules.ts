@@ -30,7 +30,7 @@ export async function execute(interaction: ChatInputCommandInteraction): Promise
     }
 
     const definition = status.definition;
-    const zone = `${effectiveTimezone(definition.timezone)}${definition.timezone ? "" : " (host local)"}`;
+    const zone = effectiveTimezone(definition.timezone);
     const next = status.nextRun ? `<t:${Math.floor(status.nextRun.getTime() / 1000)}:F> (<t:${Math.floor(status.nextRun.getTime() / 1000)}:R>)` : "Disabled";
     const lines = [
       definition.description,

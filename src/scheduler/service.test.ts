@@ -66,9 +66,11 @@ describe("ScheduleService", () => {
     expect(service.getStatuses().every((status) => status.error?.includes("duplicate schedule name"))).toBe(true);
   });
 
-  it("keeps explicit and host-local schedules independently enumerable", async () => {
-    const local = await service.create({ name: "Local", cron: "0 8 * * *", discordChannel: channel, prompt: "Local" });
+  it("defaults omitted timezones to HKT while preserving explicit zones", async () => {
+    const local = await service.create({ name: "Default", cron: "0 8 * * *", discordChannel: channel, prompt: "Default" });
     const zoned = await service.create({ name: "Zoned", cron: "0 8 * * *", discordChannel: channel, timezone: "America/New_York", prompt: "Zoned" });
+    expect(local.timezone).toBe("Asia/Hong_Kong");
+    expect(zoned.timezone).toBe("America/New_York");
     expect(service.previewNextRuns(local, 2)).toHaveLength(2);
     expect(service.previewNextRuns(zoned, 2)).toHaveLength(2);
   });

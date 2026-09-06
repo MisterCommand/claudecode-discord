@@ -29,7 +29,7 @@ async function runScheduledTurn(client: Client, definition: ScheduleDefinition):
       `Name: ${definition.name}`,
       `Schedule ID: ${definition.id}`,
       `Cron: ${definition.cron}`,
-      `Time zone: ${effectiveTimezone(definition.timezone)}${definition.timezone ? "" : " (host local)"}`,
+      `Time zone: ${effectiveTimezone(definition.timezone)}`,
       `Triggered at: ${new Date().toISOString()}`,
       "",
       "[Task prompt]",

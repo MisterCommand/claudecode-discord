@@ -7,6 +7,7 @@ import type { ScheduleCreateInput, ScheduleDefinition } from "./types.js";
 
 const SAFE_ID = /^[a-z0-9](?:[a-z0-9._-]{0,62}[a-z0-9])?$/;
 const DISCORD_CHANNEL_ID = /^\d{17,20}$/;
+const DEFAULT_TIMEZONE = "Asia/Hong_Kong";
 
 const metadataSchema = z.object({
   name: z.string().trim().min(1, "name is required").max(100, "name must be at most 100 characters"),
@@ -68,9 +69,10 @@ export function createCron(pattern: string, timezone?: string, paused = true): C
   if (pattern.trim().split(/\s+/).length !== 5) {
     throw new Error("cron must use exactly five fields: minute hour day-of-month month day-of-week");
   }
-  validateTimezone(timezone);
+  const resolvedTimezone = effectiveTimezone(timezone);
+  validateTimezone(resolvedTimezone);
   try {
-    return new Cron(pattern, { timezone, paused, mode: "5-part" });
+    return new Cron(pattern, { timezone: resolvedTimezone, paused, mode: "5-part" });
   } catch (error) {
     throw new Error(`invalid cron expression: ${error instanceof Error ? error.message : String(error)}`);
   }
@@ -101,24 +103,24 @@ export function parseScheduleFile(filePath: string, source: string): ScheduleDef
   const prompt = extracted.prompt.trim();
   if (!prompt) throw new ScheduleParseError("Markdown prompt body cannot be empty", result.data.discord_channel);
   try {
-    const cron = createCron(result.data.cron, result.data.timezone);
+    const timezone = effectiveTimezone(result.data.timezone);
+    const cron = createCron(result.data.cron, timezone);
     cron.stop();
+    return {
+      id,
+      filePath,
+      sourceHash,
+      name: result.data.name,
+      description: result.data.description,
+      cron: result.data.cron,
+      discordChannel: result.data.discord_channel,
+      enabled: result.data.enabled,
+      timezone,
+      prompt,
+    };
   } catch (error) {
     throw new ScheduleParseError(error instanceof Error ? error.message : String(error), result.data.discord_channel);
   }
-
-  return {
-    id,
-    filePath,
-    sourceHash,
-    name: result.data.name,
-    description: result.data.description,
-    cron: result.data.cron,
-    discordChannel: result.data.discord_channel,
-    enabled: result.data.enabled,
-    timezone: result.data.timezone,
-    prompt,
-  };
 }
 
 export function serializeSchedule(input: ScheduleCreateInput): string {
@@ -129,7 +131,7 @@ export function serializeSchedule(input: ScheduleCreateInput): string {
   metadata.cron = input.cron.trim();
   metadata.discord_channel = input.discordChannel;
   metadata.enabled = input.enabled ?? true;
-  if (input.timezone?.trim()) metadata.timezone = input.timezone.trim();
+  metadata.timezone = effectiveTimezone(input.timezone);
   return `---\n${YAML.stringify(metadata, { lineWidth: 0 }).trimEnd()}\n---\n\n${input.prompt.trim()}\n`;
 }
 
@@ -142,5 +144,5 @@ export function scheduleIdFromName(name: string): string {
 }
 
 export function effectiveTimezone(timezone?: string): string {
-  return timezone ?? Intl.DateTimeFormat().resolvedOptions().timeZone ?? "host local time";
+  return timezone?.trim() || DEFAULT_TIMEZONE;
 }

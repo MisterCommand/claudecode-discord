@@ -4,7 +4,7 @@ import path from "node:path";
 import { Cron } from "croner";
 import { PermissionFlagsBits, type Client } from "discord.js";
 import {
-  createCron, parseScheduleFile, scheduleIdFromName, ScheduleParseError, serializeSchedule,
+  createCron, effectiveTimezone, parseScheduleFile, scheduleIdFromName, ScheduleParseError, serializeSchedule,
 } from "./parser.js";
 import type { ScheduleCreateInput, ScheduleDefinition, ScheduleStatus, ScheduleUpdateInput } from "./types.js";
 
@@ -167,7 +167,7 @@ export class ScheduleService {
 
   private startJob(definition: ScheduleDefinition): void {
     const job = new Cron(definition.cron, {
-      timezone: definition.timezone,
+      timezone: effectiveTimezone(definition.timezone),
       mode: "5-part",
       protect: false,
       unref: true,
