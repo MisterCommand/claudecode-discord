@@ -243,11 +243,11 @@ Highlight anything that needs attention.
 > [!WARNING]
 > Schedules are trusted, unattended automations. A scheduled turn takes the Access Profile of its exact destination channel. Anyone who can manage schedules can target an Admin channel; the execution and output will occur in that Admin channel. Scheduled turns cannot create or modify other schedules.
 
-During a turn, one Discord reply is edited in place with progress, the active Access Profile, and streaming output. On success, the progress reply becomes the final answer; oversized answers continue in mapped follow-up messages. If Claude needs clarification, it asks in its normal response and waits for the next Discord message.
+During a turn, one Discord reply is edited in place with progress and streaming output. On success, the progress reply becomes the final answer; oversized answers continue in mapped follow-up messages. If Claude needs clarification, it asks in its normal response and waits for the next Discord message.
 
 ### In-Progress Controls
 
-- **Stop** cancels only the session shown on that progress message.
+- **Stop** cancels only the task represented by that progress message.
 - Different chains can run concurrently in the same channel.
 - Messages targeting a busy chain are queued for that chain.
 - Any user with channel access can continue, stop, or delete sessions.

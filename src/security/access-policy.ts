@@ -269,7 +269,7 @@ export function evaluateProtectedRepositoryAccess(
   return {
     toolName,
     repositories,
-    reason: `Restricted access profile cannot use GitHub MCP to target protected repository ${repositories.join(", ")}.`,
+    reason: `GitHub MCP cannot target protected repository ${repositories.join(", ")}.`,
   };
 }
 

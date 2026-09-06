@@ -7,7 +7,7 @@ import { getConfig } from "../utils/config.js";
 import { getChain, mapMessage, updateChainSession, updateChainStatus } from "../db/database.js";
 import type { SessionChain } from "../db/types.js";
 import {
-  evaluateProtectedRepositoryAccess, profileLabel, snapshotAccessPolicy, writeToolDenialAudit,
+  evaluateProtectedRepositoryAccess, snapshotAccessPolicy, writeToolDenialAudit,
   type AccessPolicySnapshot,
 } from "../security/access-policy.js";
 import {
@@ -55,12 +55,11 @@ class SessionManager {
       accessPolicy: snapshotAccessPolicy(request.channel.id, getConfig()),
     };
     request.observation.setAccessProfile(resolvedRequest.accessPolicy.profile);
-    const profile = profileLabel(resolvedRequest.accessPolicy.profile);
     try {
       if (this.active.has(request.chain.id)) {
         const position = (this.queues.get(request.chain.id)?.length ?? 0) + 1;
         request.observation.markQueued(position);
-        const content = `⏳ Queued for **${request.chain.label}** (${position})  •  ${profile} profile`;
+        const content = `⏳ Queued (${position})`;
         const status = request.replyTo ? await request.replyTo.reply({
           content,
           allowedMentions: { repliedUser: false },
@@ -90,11 +89,9 @@ class SessionManager {
     request.observation.beginExecution();
     const config = getConfig();
     const scheduled = request.source === "schedule";
-    const profile = profileLabel(request.accessPolicy.profile);
-    const profileSuffix = `Access profile: ${profile}`;
     const scheduleHeader = scheduled ? `⏰ **Scheduled: ${escapeMarkdown(request.scheduleName ?? "Task")}**\n` : "";
     const initial = {
-      content: `${scheduleHeader}⏳ Thinking…  •  **${chain.label}**  •  ${profile} profile`,
+      content: `${scheduleHeader}⏳ Thinking…`,
       components: [createStopButton(chain.id)],
     };
     const statusMessage = request.statusMessage ?? (request.replyTo
@@ -130,7 +127,7 @@ class SessionManager {
 
     const heartbeat = setInterval(() => {
       const seconds = Math.round((Date.now() - startedAt) / 1000);
-      void editStatus(`${scheduleHeader}⏳ ${lastActivity} (${seconds}s, ${toolCount} tools)  •  **${chain.label}**  •  ${profile} profile`);
+      void editStatus(`${scheduleHeader}⏳ ${lastActivity} (${seconds}s, ${toolCount} tools)`);
     }, 15_000);
 
     const preToolUseHook: HookCallback = async (input) => {
@@ -140,17 +137,17 @@ class SessionManager {
       request.observation.recordToolUse(input.tool_name);
       const names: Record<string, string> = { Read: "Reading files", Glob: "Searching files", Grep: "Searching code", Write: "Writing file", Edit: "Editing file", Bash: "Running command", WebSearch: "Searching web", WebFetch: "Fetching URL", TodoWrite: "Updating tasks" };
       lastActivity = names[input.tool_name] ?? `Using ${input.tool_name}`;
-      await editStatus(`${scheduleHeader}⏳ ${lastActivity}  •  **${chain.label}**  •  ${profile} profile`);
+      await editStatus(`${scheduleHeader}⏳ ${lastActivity}`);
 
       const denial = evaluateProtectedRepositoryAccess(request.accessPolicy, input.tool_name, input.tool_input);
       if (!denial) return {};
 
       writeToolDenialAudit(channel.id, request.accessPolicy.profile, denial);
       for (const repository of denial.repositories) {
-        blockedNotices.set(`${input.tool_name}:${repository.toLowerCase()}`, `🛡️ Blocked \`${input.tool_name}\` from targeting protected repository \`${repository}\` under the Restricted profile.`);
+        blockedNotices.set(`${input.tool_name}:${repository.toLowerCase()}`, `🛡️ Blocked \`${input.tool_name}\` from targeting protected repository \`${repository}\`.`);
       }
       lastActivity = `Blocked ${input.tool_name}`;
-      await editStatus(`${scheduleHeader}🛡️ ${denial.reason}  •  **${chain.label}**  •  ${profile} profile`);
+      await editStatus(`${scheduleHeader}🛡️ ${denial.reason}`);
       return {
         hookSpecificOutput: {
           hookEventName: "PreToolUse",
@@ -212,7 +209,7 @@ class SessionManager {
               const now = Date.now();
               if (responseBuffer && now - lastEdit >= 1500) {
                 lastEdit = now;
-                await editStatus(`${formatStreamChunk(`${scheduleHeader}${responseBuffer}`)}\n\n-# ${chain.label} • ${profileSuffix} • working`);
+                await editStatus(formatStreamChunk(`${scheduleHeader}${responseBuffer}`));
               }
             }
             if ("result" in sdkMessage) {
@@ -242,7 +239,7 @@ class SessionManager {
           attemptedResume = false;
           chain.session_id = null;
           updateChainSession(chain.id, null);
-          await editStatus(`⚠️ The old session is no longer available. Starting a new session…  •  **${chain.label}**  •  ${profile} profile`);
+          await editStatus("⚠️ The old session is no longer available. Starting a new session…");
           queryInstance = request.observation.run(() => runQuery(false));
           continue retry;
         }
@@ -254,7 +251,7 @@ class SessionManager {
       const chunks = splitMessage(finalText);
       await request.observation.runChild("claudecode_discord.response.publish", async () => {
         for (let index = 0; index < chunks.length; index++) {
-          const content = `${chunks[index]}\n\n-# Session ${chain.label} • ${profileSuffix}`;
+          const content = chunks[index];
           const finalMessage = index === 0
             ? await statusMessage.edit({ content, components: [] })
             : await channel.send({ content });
@@ -275,7 +272,7 @@ class SessionManager {
         : `${scheduleHeader}❌ ${raw}${auth}${blocked}`;
       try {
         await request.observation.runChild("claudecode_discord.response.publish", async () => {
-          await statusMessage.edit({ content: `${response}\n\n-# Session ${chain.label} • ${profileSuffix}`, components: [] });
+          await statusMessage.edit({ content: response, components: [] });
         });
       } finally {
         updateChainStatus(chain.id, stopped ? "idle" : "offline");

@@ -27,7 +27,7 @@ install.bat          # Windows CLI bootstrap and build
                         [SQLite (better-sqlite3)]
 ```
 
-**Core data flow:** Message sent to a visible channel → `message.ts` validates rate limiting → session chain resolution → attachment download → `SessionManager.sendMessage()` snapshots the exact-channel Access Profile and creates/resumes Agent SDK `query()` → denied tools are omitted → `PreToolUse` tracks progress and blocks protected GitHub targets for Restricted → streaming response is edited into Discord every 1.5s → heartbeat every 15s shows tool count and profile → Stop button can interrupt immediately → final response includes the profile footer and policy denial notices.
+**Core data flow:** Message sent to a visible channel → `message.ts` validates rate limiting → session chain resolution → attachment download → `SessionManager.sendMessage()` snapshots the exact-channel Access Profile and creates/resumes Agent SDK `query()` → denied tools are omitted → `PreToolUse` tracks progress and blocks protected GitHub targets for Restricted → streaming response is edited into Discord every 1.5s → heartbeat every 15s shows tool count → Stop button can interrupt immediately → final response includes policy denial notices without exposing profile or session labels.
 
 ### File Structure
 
