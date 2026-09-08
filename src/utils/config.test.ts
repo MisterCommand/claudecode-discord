@@ -73,6 +73,60 @@ describe("environment configuration", () => {
     expect(() => parseEnvironment({ DISCORD_BOT_TOKEN: "token", BASE_PROJECT_DIR: "/projects" }))
       .toThrow(/BOT_CONFIG_DIR/);
   });
+
+  it("keeps Exchange email retrieval disabled when all EWS variables are blank", () => {
+    const parsed = parseEnvironment({
+      DISCORD_BOT_TOKEN: "token",
+      BASE_PROJECT_DIR: "/projects",
+      BOT_CONFIG_DIR: "/bot-config",
+      EWS_URL: " ",
+      EWS_EMAIL: "",
+      EWS_PASSWORD: "",
+    });
+    expect(parsed).toMatchObject({
+      EWS_URL: undefined,
+      EWS_EMAIL: undefined,
+      EWS_PASSWORD: undefined,
+    });
+  });
+
+  it("accepts a complete HTTPS Exchange email configuration without trimming the password", () => {
+    const parsed = parseEnvironment({
+      DISCORD_BOT_TOKEN: "token",
+      BASE_PROJECT_DIR: "/projects",
+      BOT_CONFIG_DIR: "/bot-config",
+      EWS_URL: " https://mail.example.com/EWS/Exchange.asmx ",
+      EWS_EMAIL: " admin@example.com ",
+      EWS_PASSWORD: " password with spaces ",
+    });
+    expect(parsed).toMatchObject({
+      EWS_URL: "https://mail.example.com/EWS/Exchange.asmx",
+      EWS_EMAIL: "admin@example.com",
+      EWS_PASSWORD: " password with spaces ",
+    });
+  });
+
+  it("rejects partial, non-HTTPS, and invalid-email Exchange configurations", () => {
+    const base = {
+      DISCORD_BOT_TOKEN: "token",
+      BASE_PROJECT_DIR: "/projects",
+      BOT_CONFIG_DIR: "/bot-config",
+    };
+    expect(() => parseEnvironment({ ...base, EWS_URL: "https://mail.example.com/EWS/Exchange.asmx" }))
+      .toThrow(/EWS_EMAIL is required/);
+    expect(() => parseEnvironment({
+      ...base,
+      EWS_URL: "http://mail.example.com/EWS/Exchange.asmx",
+      EWS_EMAIL: "admin@example.com",
+      EWS_PASSWORD: "password",
+    })).toThrow(/valid https:\/\/ URL/);
+    expect(() => parseEnvironment({
+      ...base,
+      EWS_URL: "https://mail.example.com/EWS/Exchange.asmx",
+      EWS_EMAIL: "not-an-email",
+      EWS_PASSWORD: "password",
+    })).toThrow(/valid email address/);
+  });
 });
 
 describe("YAML bot configuration", () => {

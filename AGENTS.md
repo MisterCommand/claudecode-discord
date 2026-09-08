@@ -4,7 +4,7 @@ This file is a guide for Codex (Codex.ai/code) when working in this repository.
 
 ## Project Overview
 
-A bot that manages Claude Agent SDK sessions on Discord (desktop/web/mobile). Independent sessions run in `BASE_PROJECT_DIR`. Each turn snapshots a Restricted or Admin Access Profile from its exact destination channel/thread ID. Both profiles use bypass permissions, configured deny rules hide unavailable tools, and a pre-use hook blocks recognized GitHub MCP calls that directly target Protected Repositories from Restricted channels. File attachments are downloaded to `.claude-uploads/`; dangerous executables are blocked and a 25MB limit applies. Runs as a foreground Node.js process or Docker container on macOS, Linux, Windows, and headless servers.
+A bot that manages Claude Agent SDK sessions on Discord (desktop/web/mobile). Independent sessions run in `BASE_PROJECT_DIR`. Each turn snapshots a Restricted or Admin Access Profile from its exact destination channel/thread ID. Both profiles use bypass permissions, configured deny rules hide unavailable tools, and a pre-use hook blocks recognized GitHub MCP calls that directly target Protected Repositories from Restricted channels. Admin turns may also receive optional read-only access to one on-premises Exchange Inbox. File attachments are downloaded to `.claude-uploads/`; dangerous executables are blocked and a 25MB limit applies. Runs as a foreground Node.js process or Docker container on macOS, Linux, Windows, and headless servers.
 
 ## Commands
 
@@ -53,6 +53,8 @@ claudecode-discord/
 │   ├── db/
 │   │   ├── database.ts     # SQLite init & queries
 │   │   └── types.ts
+│   ├── email/
+│   │   └── tools.ts        # Admin-only read-only Exchange Inbox MCP tools
 │   ├── security/
 │   │   ├── access-policy.ts # Access profiles and GitHub MCP protection
 │   │   └── guard.ts         # Rate limit and path validation
@@ -75,6 +77,7 @@ claudecode-discord/
 - **`src/claude/session-manager.ts`** — Snapshots Access Profile per turn, passes profile denials through `disallowedTools`, enforces Protected Repositories with `PreToolUse`, runs remaining tools in bypass mode, logs profile/audit events, streams responses, resumes SDK sessions, and queues per chain
 - **`src/claude/output-formatter.ts`** — Splits messages for Discord's length limit while preserving code fences and creates Stop/completion UI
 - **`src/db/database.ts`** — SQLite WAL mode. Auto-creates `data.db` with `session_chains` and Discord `message_mappings`
+- **`src/email/tools.ts`** — Optional in-process `exchange_email` MCP server for Admin turns; lists/searches the configured Inbox and retrieves plain-text messages plus attachment metadata without mailbox mutations
 - **`src/security/guard.ts`** — In-memory sliding-window rate limiting and project path validation
 - **`src/security/access-policy.ts`** — Exact channel-to-profile classification, global plus Restricted denylist composition, GitHub MCP direct-target matching, and minimal stderr audit records
 - **`src/utils/config.ts`** — Environment settings plus mandatory versioned `BOT_CONFIG_DIR/config.yaml`; rejects invalid, writable, linked, or in-workspace configuration and does not hot reload
@@ -86,7 +89,8 @@ claudecode-discord/
 3. `tools.restricted_denied` is additionally hidden from Restricted
 4. Restricted `mcp__github__*` calls using reviewed schemas are denied when a direct target matches `access.protected_repositories` case-insensitively
 5. All remaining tools execute through `bypassPermissions` without Discord approval
-6. Scheduled turns use the exact destination ID and follow the same policy
+6. Configured Exchange email tools exist only for Admin turns; credentials are not forwarded to the Claude subprocess and mailbox content remains untrusted
+7. Scheduled turns use the exact destination ID and follow the same policy
 
 ### Session States
 
@@ -118,4 +122,4 @@ This project is **public open source** and used by many users without technical 
 
 ## Environment Setup
 
-Copy `.env.example` to `.env` and set values. Required: `DISCORD_BOT_TOKEN`, `BASE_PROJECT_DIR`, and `BOT_CONFIG_DIR`; `DISCORD_GUILD_ID` is optional. `BOT_CONFIG_DIR` must be an absolute, non-linked, read-only directory outside `BASE_PROJECT_DIR` containing strict version 1 `config.yaml`. Optional: `RATE_LIMIT_PER_MINUTE` (default 10), `SHOW_COST` (default true), and `CLAUDE_MODEL`. Invalid configuration prevents startup.
+Copy `.env.example` to `.env` and set values. Required: `DISCORD_BOT_TOKEN`, `BASE_PROJECT_DIR`, and `BOT_CONFIG_DIR`; `DISCORD_GUILD_ID` is optional. `BOT_CONFIG_DIR` must be an absolute, non-linked, read-only directory outside `BASE_PROJECT_DIR` containing strict version 1 `config.yaml`. Optional: `RATE_LIMIT_PER_MINUTE` (default 10), `SHOW_COST` (default true), `CLAUDE_MODEL`, and the all-or-none `EWS_URL`/`EWS_EMAIL`/`EWS_PASSWORD` group for Admin-only on-premises Exchange email retrieval. Invalid configuration prevents startup.

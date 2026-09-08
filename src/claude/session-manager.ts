@@ -17,6 +17,9 @@ import {
   createScheduleMcpServer, type ScheduleToolContext,
 } from "../scheduler/tools.js";
 import {
+  EMAIL_SYSTEM_PROMPT, emailCredentialEnvironmentOverrides, emailMcpServerForProfile,
+} from "../email/tools.js";
+import {
   createStopButton, formatStreamChunk, splitMessage,
 } from "./output-formatter.js";
 
@@ -160,6 +163,16 @@ class SessionManager {
     const runQuery = (resume: boolean): Query => {
       const scheduleServer = !scheduled && request.scheduleToolContext
         ? createScheduleMcpServer(request.scheduleToolContext) : undefined;
+      const emailServer = emailMcpServerForProfile(request.accessPolicy.profile, config);
+      const mcpServers = {
+        ...(scheduleServer ? { discord_scheduler: scheduleServer } : {}),
+        ...(emailServer ? { exchange_email: emailServer } : {}),
+      };
+      const systemPrompt = [
+        DISCORD_SYSTEM_PROMPT,
+        ...(scheduleServer ? [SCHEDULER_SYSTEM_PROMPT] : []),
+        ...(emailServer ? [EMAIL_SYSTEM_PROMPT] : []),
+      ].join(" ");
       return query({
         prompt,
         options: {
@@ -171,6 +184,7 @@ class SessionManager {
           env: {
             ...process.env,
             ANTHROPIC_API_KEY: undefined,
+            ...emailCredentialEnvironmentOverrides(),
             PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ""}`,
             ...agentTelemetryEnvironment(config),
           },
@@ -182,9 +196,9 @@ class SessionManager {
           systemPrompt: {
             type: "preset",
             preset: "claude_code",
-            append: scheduleServer ? `${DISCORD_SYSTEM_PROMPT} ${SCHEDULER_SYSTEM_PROMPT}` : DISCORD_SYSTEM_PROMPT,
+            append: systemPrompt,
           },
-          ...(scheduleServer ? { mcpServers: { discord_scheduler: scheduleServer } } : {}),
+          ...(Object.keys(mcpServers).length ? { mcpServers } : {}),
         },
       });
     };

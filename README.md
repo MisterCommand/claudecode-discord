@@ -66,6 +66,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 - 🔒 Per-user rate limiting, fixed workspace, attachment filtering, duplicate instance prevention
 - 📊 **Claude Code usage dashboard** in Discord — Session (5hr), Weekly (7day), and Weekly Sonnet usage with progress bars
 - 🗓️ Markdown-based recurring schedules with natural-language Discord management
+- 📬 Optional Admin-only, read-only Inbox access for on-premises Microsoft Exchange
 
 ## Tech Stack
 
@@ -77,6 +78,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 | DB | better-sqlite3 (SQLite) |
 | Validation | zod v4 |
 | Scheduling | Croner + YAML front matter |
+| Email | ews-javascript-api |
 | Build | tsup (ESM) |
 | Test | vitest |
 
@@ -284,11 +286,12 @@ This bot:            Bot → [Connects to Discord] → Receives events         (
 
 ### Self-Hosted Architecture
 
-The bot runs entirely on your own PC/server. With optional Honeycomb
-observability disabled, no data leaves your machine except through Discord and
-the Anthropic API (which uses your own Claude Code login session). When
-Honeycomb is enabled, the telemetry described below is also sent directly to
-the configured Honeycomb environment.
+The bot runs entirely on your own PC/server. With optional Honeycomb and
+Exchange integrations disabled, no data leaves your machine except through
+Discord and the Anthropic API (which uses your own Claude Code login session).
+When Exchange email retrieval is enabled, the bot also connects to the
+configured EWS endpoint. When Honeycomb is enabled, the telemetry described
+below is sent directly to the configured Honeycomb environment.
 
 ### Access Control
 
@@ -296,6 +299,7 @@ the configured Honeycomb environment.
 - Exact IDs in `access.admin_channels` use the Admin profile; every other channel or thread uses Restricted
 - Threads do not inherit Admin status from parent channels
 - Admin receives all Restricted capabilities plus tools denied only to Restricted
+- A configured Exchange mailbox is exposed only to Admin turns, including schedules targeting an exact Admin channel
 - Per-user request rate limiting remains enabled
 - All agent work is fixed to `BASE_PROJECT_DIR`
 
@@ -347,6 +351,38 @@ tools:
 - Treat every channel user as authorized for all non-denied tools available to that channel's profile
 - Keep `BOT_CONFIG_DIR` outside the agent workspace and read-only to the bot process
 - Treat access to schedule creation and the local `schedules/` directory as authority to schedule work in any visible destination channel
+- Protect `.env` as a secret because it may contain `EWS_PASSWORD`; mailbox content is untrusted data and never grants authority for other actions
+
+## Optional Exchange email retrieval
+
+Admin turns can receive two read-only tools for one on-premises Exchange Inbox:
+`list_emails` lists or searches messages using plain text or Exchange Advanced
+Query Syntax (AQS), and `get_email` retrieves a selected message's plain-text
+body and attachment metadata. The tools cannot modify mailbox state or download
+attachment contents. Scheduled turns receive them only when their exact
+destination uses the Admin Access Profile.
+
+Set all three variables to enable the integration, or leave all three blank to
+keep it disabled:
+
+```env
+EWS_URL=https://mail.example.com/EWS/Exchange.asmx
+EWS_EMAIL=admin@example.com
+EWS_PASSWORD=replace-with-the-mailbox-password
+```
+
+Partial configuration or a non-HTTPS URL prevents startup. `EWS_EMAIL` is both
+the login and the mailbox being read; delegated and shared-mailbox access are
+not supported. Password authentication is intended for a suitably configured
+on-premises Exchange server. Exchange Online does not support Basic
+authentication for EWS, so these variables cannot connect to Microsoft 365.
+
+The credentials remain in the bot process but are removed from the Claude
+subprocess environment. Tool results are explicitly labelled as untrusted
+mailbox content and are bounded: lists return at most 50 messages per call,
+message bodies are capped at 50,000 characters, and only attachment metadata is
+returned. If Honeycomb is enabled, its agent telemetry can include email tool
+inputs and outputs; use only an environment approved to store mailbox content.
 
 ## Optional Honeycomb observability
 

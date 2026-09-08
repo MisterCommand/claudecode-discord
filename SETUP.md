@@ -101,6 +101,11 @@ BOT_CONFIG_DIR=/Users/yourname/claude-discord-config
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
 # CLAUDE_MODEL=claude-sonnet-4-6
+# Optional Admin-only, read-only on-premises Exchange Inbox access.
+# Set all three EWS values or leave all three blank.
+# EWS_URL=https://mail.example.com/EWS/Exchange.asmx
+# EWS_EMAIL=admin@example.com
+# EWS_PASSWORD=replace-with-the-mailbox-password
 # HONEYCOMB_API_KEY=your_ingest_key
 HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 ```
@@ -114,6 +119,9 @@ HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 | `RATE_LIMIT_PER_MINUTE` | Per-user message limit; defaults to `10` |
 | `SHOW_COST` | Show estimated task cost; defaults to `true` |
 | `CLAUDE_MODEL` | Optional Claude model override |
+| `EWS_URL` | Optional HTTPS EWS endpoint; requires `EWS_EMAIL` and `EWS_PASSWORD` |
+| `EWS_EMAIL` | On-premises Exchange login and mailbox address |
+| `EWS_PASSWORD` | On-premises Exchange mailbox password; never forwarded to the Claude subprocess |
 | `HONEYCOMB_API_KEY` | Optional Honeycomb ingest key; leaving it blank disables observability export |
 | `HONEYCOMB_API_ENDPOINT` | Honeycomb ingest base URL; defaults to the US endpoint, or use `https://api.eu1.honeycomb.io` for EU |
 
@@ -125,6 +133,14 @@ values are capped at approximately 60 KB; extended-thinking content remains
 redacted by Claude Code. Claude's built-in telemetry may also identify the
 authenticated Claude account and workspace host paths. See the observability
 section in [README.md](README.md) before enabling it.
+
+The optional EWS integration uses password authentication and therefore targets
+on-premises Exchange, not Exchange Online/Microsoft 365. `EWS_URL` must use
+HTTPS. The Inbox tools are available only in exact Admin channels (including
+scheduled turns), return plain-text bodies and attachment metadata, and never
+change mailbox state or download attachment contents. Mailbox content remains
+untrusted data. When Honeycomb is enabled, email tool inputs and outputs may be
+included in agent telemetry.
 
 To copy a server ID, enable **Developer Mode** in Discord's advanced settings,
 then right-click the server name or long-press it on mobile.
@@ -306,6 +322,13 @@ channel; the work and output occur in the destination channel.
 
 Run `claude` in the same environment used by the bot and complete login again.
 For Docker, authenticate inside the persistent `/home/node` volume.
+
+### Exchange email tools are missing or fail
+
+- Confirm `EWS_URL`, `EWS_EMAIL`, and `EWS_PASSWORD` are all set, then restart the bot.
+- Confirm the destination channel or thread ID is listed exactly in `access.admin_channels`.
+- Confirm `EWS_URL` is the HTTPS service endpoint, commonly ending in `/EWS/Exchange.asmx`.
+- Confirm password authentication is enabled for the on-premises Exchange account; Exchange Online requires OAuth and is not supported by this integration.
 
 ### Native SQLite installation fails
 

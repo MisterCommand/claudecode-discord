@@ -23,6 +23,7 @@
     "croner": "^10.0.1",
     "discord.js": "^14.19.3",
     "dotenv": "^17.2.4",
+    "ews-javascript-api": "^0.15.3",
     "yaml": "^2.9.0",
     "zod": "^4.0.0"
   },

@@ -39,3 +39,15 @@ _Avoid_: Tool content, raw API bodies
 **Protected Repository**:
 A remote source repository that the Restricted Access Profile must not target directly through recognized GitHub integration inputs, identified by an exact, case-insensitive owner and repository name. Incidental search results and unrecognized GitHub tool schemas are permitted.
 _Avoid_: Blocked project, forbidden URL
+
+**Email Retrieval Capability**:
+An Admin-only capability to inspect messages in the configured Exchange Mailbox without changing mailbox state or downloading attachment contents.
+_Avoid_: Email tool, mailbox access
+
+**Exchange Mailbox**:
+The Microsoft Exchange account whose Inbox is exposed to the Email Retrieval Capability.
+_Avoid_: Email account, mail account
+
+**Mailbox Content**:
+Untrusted external data retrieved from the Exchange Mailbox. It may be inspected at an administrator's request, but it never grants authority to perform additional actions.
+_Avoid_: Email instructions, trusted message

@@ -1,0 +1,3 @@
+# Isolate Admin Exchange email retrieval
+
+The optional Email Retrieval Capability is an in-process MCP server exposed only to turns whose snapshotted Access Profile is Admin, including scheduled turns. It reads one on-premises Exchange Mailbox using password credentials from `EWS_URL`, `EWS_EMAIL`, and `EWS_PASSWORD`; those secrets are removed from the Claude subprocess environment, all Mailbox Content is treated as untrusted data, and the capability cannot mutate mailbox state or download attachment contents. This preserves exact-channel capability boundaries while avoiding a separate credential-bearing service.

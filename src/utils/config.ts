@@ -14,6 +14,18 @@ const toolRuleSchema = z.string()
   .min(1, "must not be empty")
   .refine((value) => value.trim() === value, "must not have surrounding whitespace")
   .regex(/^(?:[A-Za-z][A-Za-z0-9_]*(?:\([^()\r\n]+\))?|mcp__[A-Za-z0-9_]+__\*)$/, "must be a valid Claude tool deny rule");
+const optionalTrimmedString = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || undefined : value,
+  z.string().optional(),
+);
+const optionalEmail = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || undefined : value,
+  z.string().email("must be a valid email address").optional(),
+);
+const optionalPassword = z.preprocess(
+  (value) => value === "" ? undefined : value,
+  z.string().min(1, "must not be empty").optional(),
+);
 
 function uniqueStrings(message: string, caseInsensitive = false) {
   return <T extends z.ZodType<string>>(item: T) => z.array(item).superRefine((values, context) => {
@@ -54,6 +66,9 @@ const envSchema = z.object({
   DISCORD_GUILD_ID: z.string().optional(),
   BASE_PROJECT_DIR: z.string().min(1, "BASE_PROJECT_DIR is required"),
   BOT_CONFIG_DIR: z.string().min(1, "BOT_CONFIG_DIR is required"),
+  EWS_URL: optionalTrimmedString,
+  EWS_EMAIL: optionalEmail,
+  EWS_PASSWORD: optionalPassword,
   HONEYCOMB_API_KEY: z
     .string()
     .optional()
@@ -70,6 +85,30 @@ const envSchema = z.object({
     .string()
     .optional()
     .transform((value) => (value && value.length > 0 ? value : undefined)),
+}).superRefine((config, context) => {
+  const keys = ["EWS_URL", "EWS_EMAIL", "EWS_PASSWORD"] as const;
+  const configured = keys.filter((key) => config[key] !== undefined);
+  if (configured.length > 0 && configured.length < keys.length) {
+    for (const key of keys) {
+      if (config[key] === undefined) context.addIssue({
+        code: "custom",
+        message: `${key} is required when Exchange email retrieval is configured`,
+        path: [key],
+      });
+    }
+  }
+  if (config.EWS_URL !== undefined) {
+    try {
+      const url = new URL(config.EWS_URL);
+      if (url.protocol !== "https:") throw new Error("not HTTPS");
+    } catch {
+      context.addIssue({
+        code: "custom",
+        message: "must be a valid https:// URL",
+        path: ["EWS_URL"],
+      });
+    }
+  }
 });
 
 export type BotFileConfig = z.infer<typeof botConfigSchema>;
