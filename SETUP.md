@@ -134,11 +134,15 @@ redacted by Claude Code. Claude's built-in telemetry may also identify the
 authenticated Claude account and workspace host paths. See the observability
 section in [README.md](README.md) before enabling it.
 
-The optional EWS integration uses password authentication and therefore targets
-on-premises Exchange, not Exchange Online/Microsoft 365. `EWS_URL` must use
-HTTPS. The Inbox tools are available only in exact Admin channels (including
-scheduled turns), return plain-text bodies and attachment metadata, and never
-change mailbox state or download attachment contents. Mailbox content remains
+The optional EWS integration uses NTLM password authentication and therefore
+targets on-premises Exchange, not Exchange Online/Microsoft 365. The EWS
+virtual directory must allow NTLM authentication, and `EWS_URL` must use HTTPS.
+The Exchange endpoint must be directly reachable because EWS requests bypass
+HTTP proxy environment variables; the NTLM client cannot authenticate through
+a proxy.
+The Inbox tools are available only in exact Admin channels (including scheduled
+turns), return plain-text bodies and attachment metadata, and never change
+mailbox state or download attachment contents. Mailbox content remains
 untrusted data. When Honeycomb is enabled, email tool inputs and outputs may be
 included in agent telemetry.
 
@@ -328,7 +332,7 @@ For Docker, authenticate inside the persistent `/home/node` volume.
 - Confirm `EWS_URL`, `EWS_EMAIL`, and `EWS_PASSWORD` are all set, then restart the bot.
 - Confirm the destination channel or thread ID is listed exactly in `access.admin_channels`.
 - Confirm `EWS_URL` is the HTTPS service endpoint, commonly ending in `/EWS/Exchange.asmx`.
-- Confirm password authentication is enabled for the on-premises Exchange account; Exchange Online requires OAuth and is not supported by this integration.
+- Confirm NTLM authentication is enabled for the on-premises Exchange EWS virtual directory; Exchange Online is not supported by this integration.
 
 ### Native SQLite installation fails
 

@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { XhrApi } from "@ewsjs/xhr";
 import {
-  BodyType, EmailMessage, ItemSchema, WellKnownFolderName,
+  BodyType, EmailMessage, ItemSchema, WebCredentials, WellKnownFolderName,
   type AttachmentCollection, type EmailAddressCollection, type ExchangeService, type Item,
 } from "ews-javascript-api";
 import type { Config } from "../utils/config.js";
 import {
-  createEmailToolHandlers, emailCredentialEnvironmentOverrides, emailMcpServerForProfile,
+  createEmailToolHandlers, createExchangeService, emailCredentialEnvironmentOverrides, emailMcpServerForProfile,
   EwsEmailReader, resolveExchangeEmailConfig, type EmailReader, type ExchangeEmailConfig,
 } from "./tools.js";
 
@@ -63,6 +64,15 @@ describe("Exchange email configuration and profile exposure", () => {
       type: "sdk",
       name: "exchange_email",
     });
+  });
+
+  it("configures the Exchange service for NTLM and mailbox routing", () => {
+    const service = createExchangeService(exchangeConfig);
+
+    expect(service.Credentials).toBeInstanceOf(WebCredentials);
+    expect(service.XHRApi.apiName).toBe("request;auth:ntlm");
+    expect((service.XHRApi as XhrApi).requestOptions.proxy).toBe(false);
+    expect(service.HttpHeaders.get("X-AnchorMailbox")).toBe(exchangeConfig.EWS_EMAIL);
   });
 });
 

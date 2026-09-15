@@ -25,8 +25,8 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/scheduler/service.test.ts` | 7 | Schedule CRUD, collisions, invalid edits, duplicate names, channel validation, next-run enumeration, concurrency | Real temporary directories |
 | `src/bot/commands/schedules.test.ts` | 2 | Empty, valid, and invalid `/schedules` rendering | Mock scheduler statuses |
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
-| `src/email/tools.test.ts` | 6 | Admin-only exposure, EWS read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
-| **Total** | **94** | | |
+| `src/email/tools.test.ts` | 7 | Admin-only exposure, EWS NTLM setup, read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
+| **Total** | **95** | | |
 
 ## What Each Test Covers
 
@@ -69,10 +69,11 @@ npx tsc --noEmit      # Type check only (no build output)
 - YAML front matter, five-field cron and IANA time-zone validation, safe schedule IDs, and serialization
 - File-backed CRUD, case-insensitive name collisions, invalid direct edits, disabled timers, and next-run enumeration
 
-### Exchange email (6 tests)
+### Exchange email (7 tests)
 
 - Complete credential resolution and credential environment removal
 - Admin-only MCP exposure for configured mailboxes
+- NTLM authentication and exact-mailbox routing configuration
 - Newest-first Inbox listing and plain-text message binding without attachment downloads
 - Untrusted mailbox-content labels and secret redaction in tool errors
 

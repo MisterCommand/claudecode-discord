@@ -7,6 +7,7 @@ import {
 import {
   createSdkMcpServer, tool, type McpSdkServerConfigWithInstance,
 } from "@anthropic-ai/claude-agent-sdk";
+import { XhrApi } from "@ewsjs/xhr";
 import { z } from "zod";
 import type { AccessProfile } from "../security/access-policy.js";
 import type { Config } from "../utils/config.js";
@@ -186,9 +187,13 @@ function detailPropertySet(): PropertySet {
   return properties;
 }
 
-function createExchangeService(config: ExchangeEmailConfig): ExchangeService {
+export function createExchangeService(config: ExchangeEmailConfig): ExchangeService {
   const service = new ExchangeService(ExchangeVersion.Exchange2013_SP1);
   service.Credentials = new WebCredentials(config.EWS_EMAIL, config.EWS_PASSWORD);
+  service.HttpHeaders.Add("X-AnchorMailbox", config.EWS_EMAIL);
+  // The NTLM provider cannot authenticate through a proxy. Disable Axios'
+  // environment-proxy handling for EWS so HTTP(S)_PROXY does not break NTLM.
+  service.XHRApi = new XhrApi({ proxy: false }).useNtlmAuthentication(config.EWS_EMAIL, config.EWS_PASSWORD);
   service.Url = new Uri(config.EWS_URL);
   service.Timeout = EWS_TIMEOUT_MS;
   return service;
@@ -259,7 +264,7 @@ function publicError(error: unknown, config: ExchangeEmailConfig): string {
   }
   message = truncate(message.replace(/[\r\n]+/g, " ").trim(), 1_000).text;
   if (/\b(?:401|unauthori[sz]ed|authentication|credentials?)\b/i.test(message)) {
-    return "Exchange authentication failed. Check EWS_EMAIL and EWS_PASSWORD and confirm password authentication is enabled on the server.";
+    return "Exchange authentication failed. Check EWS_EMAIL and EWS_PASSWORD and confirm NTLM authentication is enabled on the server.";
   }
   return `Exchange email request failed: ${message || "unknown error"}`;
 }

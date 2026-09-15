@@ -78,7 +78,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 | DB | better-sqlite3 (SQLite) |
 | Validation | zod v4 |
 | Scheduling | Croner + YAML front matter |
-| Email | ews-javascript-api |
+| Email | ews-javascript-api + @ewsjs/xhr (NTLM) |
 | Build | tsup (ESM) |
 | Test | vitest |
 
@@ -373,9 +373,11 @@ EWS_PASSWORD=replace-with-the-mailbox-password
 
 Partial configuration or a non-HTTPS URL prevents startup. `EWS_EMAIL` is both
 the login and the mailbox being read; delegated and shared-mailbox access are
-not supported. Password authentication is intended for a suitably configured
-on-premises Exchange server. Exchange Online does not support Basic
-authentication for EWS, so these variables cannot connect to Microsoft 365.
+not supported. The integration authenticates to a suitably configured
+on-premises Exchange server with NTLM. Exchange Online does not support this
+password/NTLM flow for EWS, so these variables cannot connect to Microsoft 365.
+EWS requests bypass HTTP proxy environment variables because the NTLM client
+cannot authenticate through a proxy.
 
 The credentials remain in the bot process but are removed from the Claude
 subprocess environment. Tool results are explicitly labelled as untrusted
