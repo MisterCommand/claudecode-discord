@@ -5,6 +5,7 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+channel-providers.json
 .claude/
 .claude-uploads/
 schedules/

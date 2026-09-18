@@ -40,18 +40,22 @@ claudecode-discord/
 │   ├── index.ts            # Entry point
 │   ├── bot/
 │   │   ├── client.ts       # Discord bot init & event routing
-│   │   ├── commands/       # Slash commands (3)
+│   │   ├── commands/       # Slash commands (5)
 │   │   │   ├── status.ts
 │   │   │   ├── sessions.ts
-│   │   │   └── usage.ts
+│   │   │   ├── usage.ts
+│   │   │   ├── schedules.ts
+│   │   │   └── model.ts
 │   │   └── handlers/
 │   │       ├── message.ts      # Message handling, file downloads
 │   │       └── interaction.ts  # Button/select menu handling
 │   ├── claude/
 │   │   ├── session-manager.ts  # Session lifecycle, progress display
+│   │   ├── providers.ts        # Provider selection and subprocess environment
 │   │   └── output-formatter.ts # Discord output formatting
 │   ├── db/
 │   │   ├── database.ts     # SQLite init & queries
+│   │   ├── channel-providers.ts # Per-channel /model provider overrides
 │   │   └── types.ts
 │   ├── email/
 │   │   └── tools.ts        # Admin-only read-only Exchange Inbox MCP tools
@@ -71,16 +75,18 @@ claudecode-discord/
 ### Key Modules
 
 - **`src/bot/client.ts`** — Discord.js client initialization, event routing, per-guild slash command registration
-- **`src/bot/commands/`** — 4 slash commands: status, sessions, usage, and schedules
+- **`src/bot/commands/`** — 5 slash commands: status, sessions, usage, schedules, and model
 - **`src/bot/handlers/message.ts`** — Resolves chains and context, then downloads safe attachments to `.claude-uploads/`
 - **`src/bot/handlers/interaction.ts`** — Handles Stop and session delete/cancel controls plus session selection; there are no approval or question interactions
-- **`src/claude/session-manager.ts`** — Snapshots Access Profile per turn, passes profile denials through `disallowedTools`, enforces Protected Repositories with `PreToolUse`, runs remaining tools in bypass mode, logs profile/audit events, streams responses, resumes SDK sessions, and queues per chain
+- **`src/claude/session-manager.ts`** — Snapshots Access Profile per turn, passes profile denials through `disallowedTools`, enforces Protected Repositories with `PreToolUse`, runs remaining tools in bypass mode, applies the channel's resolved provider to the SDK subprocess (credentials, model, subagent model, effort level), logs profile/audit events, streams responses, resumes SDK sessions, and queues per chain
+- **`src/claude/providers.ts`** — Resolves a channel's provider (stored override → `claude.default_provider` → first entry) and maps the selected provider to the subprocess `ANTHROPIC_*` credentials plus optional `CLAUDE_CODE_SUBAGENT_MODEL`/`CLAUDE_CODE_EFFORT_LEVEL`
 - **`src/claude/output-formatter.ts`** — Splits messages for Discord's length limit while preserving code fences and creates Stop/completion UI
 - **`src/db/database.ts`** — SQLite WAL mode. Auto-creates `data.db` with `session_chains` and Discord `message_mappings`
+- **`src/db/channel-providers.ts`** — JSON-file store for per-channel `/model` provider overrides in `channel-providers.json` beside `data.db`; malformed content degrades to "no override"
 - **`src/email/tools.ts`** — Optional in-process `exchange_email` MCP server for Admin turns; lists/searches the configured Inbox and retrieves plain-text messages plus attachment metadata without mailbox mutations
 - **`src/security/guard.ts`** — In-memory sliding-window rate limiting and project path validation
 - **`src/security/access-policy.ts`** — Exact channel-to-profile classification, global plus Restricted denylist composition, GitHub MCP direct-target matching, and minimal stderr audit records
-- **`src/utils/config.ts`** — Environment settings plus mandatory versioned `BOT_CONFIG_DIR/config.yaml`; rejects invalid, writable, linked, or in-workspace configuration and does not hot reload
+- **`src/utils/config.ts`** — Environment settings plus mandatory versioned `BOT_CONFIG_DIR/config.yaml`, including the optional `claude` section that lists the `/model` providers (identifier, label, API key, base URL, default/subagent model, effort level) and the default provider; rejects invalid, writable, linked, or in-workspace configuration, refuses the retired `CLAUDE_MODEL` variable, and does not hot reload
 
 ### Access Policy
 
@@ -122,4 +128,4 @@ This project is **public open source** and used by many users without technical 
 
 ## Environment Setup
 
-Copy `.env.example` to `.env` and set values. Required: `DISCORD_BOT_TOKEN`, `BASE_PROJECT_DIR`, and `BOT_CONFIG_DIR`; `DISCORD_GUILD_ID` is optional. `BOT_CONFIG_DIR` must be an absolute, non-linked, read-only directory outside `BASE_PROJECT_DIR` containing strict version 1 `config.yaml`. Optional: `RATE_LIMIT_PER_MINUTE` (default 10), `SHOW_COST` (default true), `CLAUDE_MODEL`, and the all-or-none `EWS_URL`/`EWS_EMAIL`/`EWS_PASSWORD` group for Admin-only on-premises Exchange email retrieval. Invalid configuration prevents startup.
+Copy `.env.example` to `.env` and set values. Required: `DISCORD_BOT_TOKEN`, `BASE_PROJECT_DIR`, and `BOT_CONFIG_DIR`; `DISCORD_GUILD_ID` is optional. `BOT_CONFIG_DIR` must be an absolute, non-linked, read-only directory outside `BASE_PROJECT_DIR` containing strict version 1 `config.yaml`. Optional: `RATE_LIMIT_PER_MINUTE` (default 10), `SHOW_COST` (default true), and the all-or-none `EWS_URL`/`EWS_EMAIL`/`EWS_PASSWORD` group for Admin-only on-premises Exchange email retrieval. Invalid configuration prevents startup.

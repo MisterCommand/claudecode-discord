@@ -10,3 +10,35 @@ access:
 tools:
   denied: []
   restricted_denied: []
+
+# Optional. Omit this whole section to keep using the host `claude login`
+# credentials and Claude Code's default model. Each provider below is one entry
+# in the /model switcher: /model picks a provider, and that provider's
+# default_model is the model every turn in the channel uses.
+claude:
+  # Provider used by channels without a /model override. Defaults to the first one.
+  default_provider: subscription
+  providers:
+    # Blank api_key keeps the host `claude login` (OAuth) credentials.
+    - value: subscription
+      label: Claude subscription
+      api_key: ""
+      base_url: ""
+      default_model: sonnet
+    # A second model from the same account: repeat the endpoint with another model.
+    - value: subscription-opus
+      label: Claude subscription (Opus)
+      api_key: ""
+      base_url: ""
+      default_model: opus
+    # A different endpoint with its own key and model.
+    - value: kimi
+      label: Moonshot Kimi
+      api_key: "sk-..."
+      base_url: https://api.moonshot.example/anthropic
+      default_model: kimi-k2
+      # Optional per provider: subagent model (CLAUDE_CODE_SUBAGENT_MODEL) and
+      # reasoning effort (CLAUDE_CODE_EFFORT_LEVEL: low, medium, high, or xhigh).
+      # Blank inherits the bot process environment.
+      subagent_model: ""
+      effort_level: high

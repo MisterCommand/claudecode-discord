@@ -9,9 +9,10 @@ import * as statusCmd from "./commands/status.js";
 import * as sessionsCmd from "./commands/sessions.js";
 import * as usageCmd from "./commands/usage.js";
 import * as schedulesCmd from "./commands/schedules.js";
+import * as modelCmd from "./commands/model.js";
 import { startScheduleRuntime } from "../scheduler/runtime.js";
 
-const commands = [statusCmd, sessionsCmd, usageCmd, schedulesCmd];
+const commands = [statusCmd, sessionsCmd, usageCmd, schedulesCmd, modelCmd];
 const commandMap = new Collection<string, { execute: (interaction: ChatInputCommandInteraction) => Promise<void> }>();
 for (const command of commands) commandMap.set(command.data.name, command);
 

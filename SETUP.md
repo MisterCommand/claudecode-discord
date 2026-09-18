@@ -100,7 +100,8 @@ BASE_PROJECT_DIR=/Users/yourname/projects
 BOT_CONFIG_DIR=/Users/yourname/claude-discord-config
 RATE_LIMIT_PER_MINUTE=10
 SHOW_COST=true
-# CLAUDE_MODEL=claude-sonnet-4-6
+# Claude API key, base URL, default model, and /model choices live in
+# BOT_CONFIG_DIR/config.yaml (see section 5).
 # Optional Admin-only, read-only on-premises Exchange Inbox access.
 # Set all three EWS values or leave all three blank.
 # EWS_URL=https://mail.example.com/EWS/Exchange.asmx
@@ -118,7 +119,6 @@ HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 | `BOT_CONFIG_DIR` | Absolute directory containing the required read-only `config.yaml`; must be outside `BASE_PROJECT_DIR` |
 | `RATE_LIMIT_PER_MINUTE` | Per-user message limit; defaults to `10` |
 | `SHOW_COST` | Show estimated task cost; defaults to `true` |
-| `CLAUDE_MODEL` | Optional Claude model override |
 | `EWS_URL` | Optional HTTPS EWS endpoint; requires `EWS_EMAIL` and `EWS_PASSWORD` |
 | `EWS_EMAIL` | On-premises Exchange login and mailbox address |
 | `EWS_PASSWORD` | On-premises Exchange mailbox password; never forwarded to the Claude subprocess |
@@ -169,6 +169,24 @@ access:
 tools:
   denied: []
   restricted_denied: []
+
+# Optional. Omit the whole section to keep using the host `claude login`
+# credentials and Claude Code's default model.
+claude:
+  default_provider: subscription
+  providers:
+    - value: subscription
+      label: Claude subscription
+      api_key: ""
+      base_url: ""
+      default_model: sonnet
+    - value: kimi
+      label: Moonshot Kimi
+      api_key: "sk-..."
+      base_url: https://api.moonshot.example/anthropic
+      default_model: kimi-k2
+      subagent_model: ""
+      effort_level: high
 ```
 
 Admin classification uses only the exact destination ID. A thread does not
@@ -178,6 +196,23 @@ automatically execute every tool not denied by these lists or a policy hook.
 Keep GitHub MCP connection settings and credentials in Claude Code's normal MCP
 configuration. This file contains policy only and assumes the MCP server is
 named `github`.
+
+The optional `claude` section defines the providers the `/model` command switches
+between. Every provider has a `value` (its lowercase identifier), a Discord
+`label`, and its own `api_key`, `base_url`, `default_model`, `subagent_model`,
+and `effort_level`: `api_key` is sent to the Claude subprocess as
+`ANTHROPIC_API_KEY` and `base_url` as `ANTHROPIC_BASE_URL`, so those variables are
+ignored when exported in the shell. A blank `api_key` keeps the host
+`claude login` (OAuth) credentials and a blank `base_url` uses the default
+endpoint. `default_model` is the model used for every turn of that provider;
+declare the same endpoint twice with different models to offer more than one
+model from one account. `default_provider` names the provider used by channels
+without a `/model` override and defaults to the first entry.
+
+`subagent_model` sets `CLAUDE_CODE_SUBAGENT_MODEL` for subagents, and
+`effort_level` sets `CLAUDE_CODE_EFFORT_LEVEL` to `low`, `medium`, `high`, or
+`xhigh`. Leave either blank to keep the value the bot process inherited from its
+environment; a configured value overrides that environment for every turn.
 
 After editing, make the directory and file read-only and own them from an
 account other than the non-root bot account. On macOS or Linux:
@@ -284,6 +319,7 @@ path within the configured workspace root.
 | `/sessions` | Inspect, resume, or delete sessions |
 | `/usage` | Show Claude Code Session, Weekly, and Sonnet usage |
 | `/schedules` | Show recurring schedules |
+| `/model` | Show or switch the Claude provider (endpoint, key, and model) for the current channel or thread |
 
 ### Profiles and controls
 

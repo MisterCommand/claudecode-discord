@@ -19,14 +19,17 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/claude/output-formatter.test.ts` | 20 | Message splitting, code block fence handling, result embeds, Stop/completion buttons | No mocking — pure logic + discord.js constructors work natively |
 | `src/security/guard.test.ts` | 12 | Sliding-window rate limiting and BASE_PROJECT_DIR path validation | Mock `getConfig()`, `vi.spyOn(fs)`, `vi.useFakeTimers()` |
 | `src/security/access-policy.test.ts` | 10 | Exact profile selection, denylist composition, GitHub repository protection, audit records | Pure policy evaluation + stderr spy |
-| `src/utils/config.test.ts` | 21 | Environment/YAML schema, trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
+| `src/utils/config.test.ts` | 26 | Environment/YAML schema (including the optional `claude` provider section and retired `CLAUDE_MODEL`), trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
 | `src/db/database.test.ts` | 4 | Conversation-chain and message-mapping CRUD | In-memory SQLite via `better-sqlite3` constructor mock |
+| `src/db/channel-providers.test.ts` | 4 | Per-channel `/model` provider override file, entry replacement, corrupt-file recovery | Real temporary directories |
 | `src/scheduler/parser.test.ts` | 8 | Markdown/YAML parsing, cron, channels, time zones, IDs, serialization | Pure parsing with Croner validation |
 | `src/scheduler/service.test.ts` | 7 | Schedule CRUD, collisions, invalid edits, duplicate names, channel validation, next-run enumeration, concurrency | Real temporary directories |
 | `src/bot/commands/schedules.test.ts` | 2 | Empty, valid, and invalid `/schedules` rendering | Mock scheduler statuses |
+| `src/bot/commands/model.test.ts` | 6 | Registered `/model` provider choices and set/show/stale/reset replies | Mock config and channel provider store |
+| `src/claude/providers.test.ts` | 7 | Provider resolution order and subprocess environment mapping, including OAuth-preserving blanks | Pure functions, no child process |
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
 | `src/email/tools.test.ts` | 7 | Admin-only exposure, EWS NTLM setup, read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
-| **Total** | **95** | | |
+| **Total** | **117** | | |
 
 ## What Each Test Covers
 
@@ -50,12 +53,14 @@ npx tsc --noEmit      # Type check only (no build output)
 - Admin bypass, unscoped and incidental searches, route scoping, and unknown-schema fail-open behavior
 - Minimal JSON audit records without unrelated tool input
 
-### config (21 tests)
+### config (26 tests)
 
 - Required environment values and defaults
 - Optional all-or-none Exchange variables, HTTPS enforcement, and email validation
 - Strict version 1 YAML, required arrays, unknown/duplicate keys, quoted Discord IDs, and unique values
 - Repository and Claude tool-rule syntax
+- Default, empty, trimmed, and normalized `claude` provider sections plus rejected provider identifiers, base URLs, effort levels, duplicates, and defaults
+- Refusal of the retired `CLAUDE_MODEL` variable
 - Read-only directory/file enforcement, non-owner POSIX checks, symlink/junction rejection, and `BASE_PROJECT_DIR` separation
 - Docker read-only mount detection
 - Required-file failure and load-once/no-hot-reload behavior
@@ -63,6 +68,13 @@ npx tsc --noEmit      # Type check only (no build output)
 ### database (4 tests)
 
 - Conversation-chain creation, status/session updates, deletion tombstones, and Discord message mappings
+
+### provider selection, /model, and subprocess environment (17 tests)
+
+- Missing, corrupt, partially invalid, and rewritten `channel-providers.json` content
+- Resolution order: stored override, then `claude.default_provider`, then the first provider, ignoring a stored provider that is no longer configured
+- `/model` registered choices and set/show/stale-override/reset reply text
+- Provider credentials and tunables mapped to the subprocess environment, with blanks keeping `claude login` and the inherited `CLAUDE_CODE_*` values
 
 ### scheduler (18 tests)
 

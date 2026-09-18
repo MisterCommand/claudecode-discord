@@ -16,6 +16,9 @@ const config: BotFileConfig = {
     denied: ["WebFetch"],
     restricted_denied: ["Bash", "mcp__dangerous__*"],
   },
+  claude: {
+    providers: [{ value: "kimi", label: "Moonshot Kimi" }],
+  },
 };
 
 describe("access profile selection", () => {

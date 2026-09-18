@@ -5,6 +5,7 @@ import path from "node:path";
 import { escapeMarkdown, type Message, type SendableChannels } from "discord.js";
 import { getConfig } from "../utils/config.js";
 import { getChain, mapMessage, updateChainSession, updateChainStatus } from "../db/database.js";
+import { channelProviders } from "../db/channel-providers.js";
 import type { SessionChain } from "../db/types.js";
 import {
   evaluateProtectedRepositoryAccess, snapshotAccessPolicy, writeToolDenialAudit,
@@ -22,6 +23,7 @@ import {
 import {
   createStopButton, formatStreamChunk, splitMessage,
 } from "./output-formatter.js";
+import { claudeEnvironmentOverrides, resolveClaudeProvider } from "./providers.js";
 
 export interface TurnRequest {
   chain: SessionChain;
@@ -91,6 +93,7 @@ class SessionManager {
     const { chain, channel, prompt } = request;
     request.observation.beginExecution();
     const config = getConfig();
+    const provider = resolveClaudeProvider(config.claude, channelProviders.get(channel.id));
     const scheduled = request.source === "schedule";
     const scheduleHeader = scheduled ? `⏰ **Scheduled: ${escapeMarkdown(request.scheduleName ?? "Task")}**\n` : "";
     const initial = {
@@ -119,6 +122,7 @@ class SessionManager {
       event: "turn_started",
       channel_id: channel.id,
       access_profile: request.accessPolicy.profile,
+      provider: provider.value,
       source: request.source ?? "interactive",
       session: chain.label,
     }));
@@ -183,7 +187,7 @@ class SessionManager {
           hooks: { PreToolUse: [{ hooks: [preToolUseHook] }] },
           env: {
             ...process.env,
-            ANTHROPIC_API_KEY: undefined,
+            ...claudeEnvironmentOverrides(provider),
             ...emailCredentialEnvironmentOverrides(),
             PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ""}`,
             ...agentTelemetryEnvironment(config),
@@ -192,7 +196,7 @@ class SessionManager {
             stderr: (data: string) => console.warn(`[claude:${chain.label}] ${data.trimEnd()}`),
           } : {}),
           ...(resume && chain.session_id ? { resume: chain.session_id } : {}),
-          ...(config.CLAUDE_MODEL ? { model: config.CLAUDE_MODEL } : {}),
+          ...(provider.default_model ? { model: provider.default_model } : {}),
           systemPrompt: {
             type: "preset",
             preset: "claude_code",

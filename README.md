@@ -169,7 +169,7 @@ claudecode-discord/
 │   ├── index.ts                # Entry point
 │   ├── bot/
 │   │   ├── client.ts           # Discord bot init & events
-│   │   ├── commands/           # /sessions, /status, /usage, /schedules
+│   │   ├── commands/           # /sessions, /status, /usage, /schedules, /model
 │   │   └── handlers/           # Message & interaction handlers
 │   ├── claude/
 │   │   ├── session-manager.ts  # Session lifecycle
@@ -205,6 +205,20 @@ Replying to an otherwise unrelated human message while mentioning the bot starts
 | `/sessions` | Inspect or delete sessions in the current channel or thread |
 | `/usage` | Show Claude Code usage |
 | `/schedules` | Show recurring schedules for the current channel or thread |
+| `/model` | Show or switch the Claude provider (endpoint, key, and model) for the current channel or thread |
+
+### Model selection
+
+`/model` switches which **provider** a channel or thread uses, not just a model
+name: each provider in `claude.providers` has its own API key, base URL, and
+default model, and the selected provider supplies all of them for every turn in
+that channel. Define several providers over the same account to offer several
+models. `/model reset:true` removes the override and returns the channel to
+`claude.default_provider` (the first provider when unset). Overrides are recorded
+in the gitignored `channel-providers.json` file next to `data.db`
+(`/data/channel-providers.json` in Docker) and take effect from the next message.
+Nothing is stored in the trusted `config.yaml`, so switching providers never
+requires editing that file. In-flight turns keep the provider they started with.
 
 ### Recurring schedules
 
@@ -343,7 +357,46 @@ access:
 tools:
   denied: []
   restricted_denied: []
+
+# Optional. Omit this section to keep using the host `claude login` credentials
+# and Claude Code's default model.
+claude:
+  default_provider: subscription
+  providers:
+    - value: subscription
+      label: Claude subscription
+      api_key: ""
+      base_url: ""
+      default_model: sonnet
+    - value: kimi
+      label: Moonshot Kimi
+      api_key: "sk-..."
+      base_url: https://api.moonshot.example/anthropic
+      default_model: kimi-k2
+      subagent_model: ""
+      effort_level: high
 ```
+
+The optional `claude` section defines the providers `/model` switches between.
+Each provider entry has a `value` (its lowercase identifier, stored as the channel
+override), a Discord `label`, and its own `api_key`, `base_url`, `default_model`,
+`subagent_model`, and `effort_level`. `api_key` becomes `ANTHROPIC_API_KEY` and
+`base_url` becomes `ANTHROPIC_BASE_URL` in the Claude subprocess, so those
+variables are ignored when exported in the shell; a blank `api_key` keeps the
+host `claude login` (OAuth) credentials, and a blank `base_url` uses the default
+endpoint. `default_model` is any SDK model alias such as `sonnet` or a full model
+ID, and it is the model used for every turn with that provider — to offer two
+models of the same account, declare the endpoint twice with different
+`default_model` values. `default_provider` names the identifier used by channels
+without a `/model` override and defaults to the first provider; at most 25
+providers can be listed.
+
+`subagent_model` and `effort_level` are optional pass-throughs for Claude Code's
+own `CLAUDE_CODE_SUBAGENT_MODEL` and `CLAUDE_CODE_EFFORT_LEVEL` settings, where
+the effort level is one of `low`, `medium`, `high`, or `xhigh` (case is ignored).
+A blank value leaves the variable to the environment the bot was started with, so
+an operator who exports it for interactive CLI use keeps that value; a configured
+value overrides that environment for every turn of that provider.
 
 ### Precautions
 
@@ -351,7 +404,7 @@ tools:
 - Treat every channel user as authorized for all non-denied tools available to that channel's profile
 - Keep `BOT_CONFIG_DIR` outside the agent workspace and read-only to the bot process
 - Treat access to schedule creation and the local `schedules/` directory as authority to schedule work in any visible destination channel
-- Protect `.env` as a secret because it may contain `EWS_PASSWORD`; mailbox content is untrusted data and never grants authority for other actions
+- Protect `.env` as a secret because it may contain `EWS_PASSWORD`, and protect `config.yaml` the same way because it holds every configured provider `api_key`; mailbox content is untrusted data and never grants authority for other actions
 
 ## Optional Exchange email retrieval
 

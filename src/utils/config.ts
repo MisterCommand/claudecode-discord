@@ -27,6 +27,82 @@ const optionalPassword = z.preprocess(
   z.string().min(1, "must not be empty").optional(),
 );
 
+const claudeModelValueSchema = z.string()
+  .min(1, "must not be empty")
+  .max(100, "must not exceed 100 characters")
+  .refine((value) => value.trim() === value, "must not have surrounding whitespace");
+
+const optionalBaseUrl = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || undefined : value,
+  z.string()
+    .refine((value) => {
+      try {
+        const protocol = new URL(value).protocol;
+        return protocol === "http:" || protocol === "https:";
+      } catch {
+        return false;
+      }
+    }, "must be a valid http:// or https:// URL")
+    .transform((value) => value.replace(/\/+$/, ""))
+    .optional(),
+);
+
+const optionalModelValue = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || undefined : value,
+  claudeModelValueSchema.optional(),
+);
+
+const optionalEffortLevel = z.preprocess(
+  (value) => typeof value === "string" ? value.trim().toLowerCase() || undefined : value,
+  z.enum(["low", "medium", "high", "xhigh"], "must be one of low, medium, high, or xhigh").optional(),
+);
+
+const claudeProviderSchema = z.strictObject({
+  value: z.string()
+    .min(1, "must not be empty")
+    .max(32, "must not exceed 32 characters")
+    .regex(/^[a-z0-9][a-z0-9._-]*$/, "must use lowercase letters, digits, dots, dashes, or underscores"),
+  label: z.string()
+    .min(1, "must not be empty")
+    .max(100, "must not exceed 100 characters")
+    .refine((value) => value.trim() === value, "must not have surrounding whitespace"),
+  api_key: optionalTrimmedString,
+  base_url: optionalBaseUrl,
+  default_model: optionalModelValue,
+  subagent_model: optionalModelValue,
+  effort_level: optionalEffortLevel,
+});
+
+export type ClaudeProvider = z.infer<typeof claudeProviderSchema>;
+
+const DEFAULT_CLAUDE_PROVIDERS: ClaudeProvider[] = [
+  { value: "default", label: "Claude Code default (host login)" },
+];
+
+const claudeProvidersSchema = z.array(claudeProviderSchema)
+  .min(1, "must list at least one provider")
+  .max(25, "Discord accepts at most 25 choices")
+  .superRefine((providers, context) => {
+    const seen = new Set<string>();
+    for (let index = 0; index < providers.length; index++) {
+      const key = providers[index].value;
+      if (seen.has(key)) context.addIssue({ code: "custom", message: "duplicate provider", path: [index] });
+      seen.add(key);
+    }
+  })
+  .default(() => DEFAULT_CLAUDE_PROVIDERS.map((provider) => ({ ...provider })));
+
+const claudeConfigSchema = z.strictObject({
+  default_provider: optionalTrimmedString,
+  providers: claudeProvidersSchema,
+}).superRefine((config, context) => {
+  if (config.default_provider !== undefined && !config.providers.some((provider) => provider.value === config.default_provider)) {
+    context.addIssue({ code: "custom", message: "must match one of claude.providers values", path: ["default_provider"] });
+  }
+});
+
+export type ClaudeConfig = z.infer<typeof claudeConfigSchema>;
+
 function uniqueStrings(message: string, caseInsensitive = false) {
   return <T extends z.ZodType<string>>(item: T) => z.array(item).superRefine((values, context) => {
     const seen = new Set<string>();
@@ -48,6 +124,7 @@ const botConfigSchema = z.strictObject({
     denied: uniqueStrings("duplicate tool deny rule", true)(toolRuleSchema),
     restricted_denied: uniqueStrings("duplicate Restricted tool deny rule", true)(toolRuleSchema),
   }),
+  claude: z.preprocess((value) => value ?? {}, claudeConfigSchema),
 }).superRefine((config, context) => {
   const globalDenials = new Set(config.tools.denied.map((rule) => rule.toLowerCase()));
   for (let index = 0; index < config.tools.restricted_denied.length; index++) {
@@ -81,10 +158,6 @@ const envSchema = z.object({
     .enum(["true", "false"])
     .default("true")
     .transform((value) => value === "true"),
-  CLAUDE_MODEL: z
-    .string()
-    .optional()
-    .transform((value) => (value && value.length > 0 ? value : undefined)),
 }).superRefine((config, context) => {
   const keys = ["EWS_URL", "EWS_EMAIL", "EWS_PASSWORD"] as const;
   const configured = keys.filter((key) => config[key] !== undefined);
@@ -252,10 +325,25 @@ export function assertTrustedConfigLocation(
 
 let cachedConfig: Config | null = null;
 
+function assertRetiredEnvironmentVariables(environment: NodeJS.ProcessEnv): void {
+  if (environment.CLAUDE_MODEL?.trim()) {
+    throw new ConfigurationError(
+      "CLAUDE_MODEL is no longer read. Set default_model on a claude.providers entry in config.yaml instead.",
+    );
+  }
+  if (environment.ANTHROPIC_API_KEY?.trim()) {
+    console.warn("ANTHROPIC_API_KEY is ignored. Set api_key on a claude.providers entry to use an API key.");
+  }
+  if (environment.ANTHROPIC_BASE_URL?.trim()) {
+    console.warn("ANTHROPIC_BASE_URL is ignored. Set base_url on a claude.providers entry to use a custom endpoint.");
+  }
+}
+
 export function loadConfig(): Config {
   if (cachedConfig) return cachedConfig;
 
   const environment = parseEnvironment(process.env);
+  assertRetiredEnvironmentVariables(process.env);
   if (!path.isAbsolute(environment.BOT_CONFIG_DIR)) {
     throw new ConfigurationError("BOT_CONFIG_DIR must be an absolute path");
   }

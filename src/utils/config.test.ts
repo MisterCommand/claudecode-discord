@@ -17,6 +17,20 @@ tools:
     - Bash
 `;
 
+const claudeYaml = `${validYaml}claude:
+  default_provider: kimi
+  providers:
+    - value: subscription
+      label: Claude subscription
+    - value: kimi
+      label: Moonshot Kimi
+      api_key: " sk-ant-test "
+      base_url: "https://gateway.example.com/anthropic/"
+      default_model: " kimi-k2 "
+      subagent_model: claude-haiku-4-5
+      effort_level: XHigh
+`;
+
 function fakeStats(type: "directory" | "file" | "symlink", mode: number): fs.Stats {
   return {
     mode,
@@ -176,6 +190,68 @@ describe("YAML bot configuration", () => {
     expect(() => parseBotConfig(validYaml.replace("    - Bash", "    - 'bad rule()'")))
       .toThrow(/valid Claude tool deny rule/);
   });
+
+  it("defaults the optional claude section to a single host-login provider", () => {
+    const omitted = parseBotConfig(validYaml).claude;
+    expect(omitted.default_provider).toBeUndefined();
+    expect(omitted.providers).toEqual([{ value: "default", label: "Claude Code default (host login)" }]);
+
+    const empty = parseBotConfig(`${validYaml}claude:\n`).claude;
+    expect(empty.providers.map((provider) => provider.value)).toEqual(["default"]);
+  });
+
+  it("trims and normalizes provider fields", () => {
+    const claude = parseBotConfig(claudeYaml).claude;
+    expect(claude.default_provider).toBe("kimi");
+    expect(claude.providers[0]).toEqual({ value: "subscription", label: "Claude subscription" });
+    expect(claude.providers[1]).toEqual({
+      value: "kimi",
+      label: "Moonshot Kimi",
+      api_key: "sk-ant-test",
+      base_url: "https://gateway.example.com/anthropic",
+      default_model: "kimi-k2",
+      subagent_model: "claude-haiku-4-5",
+      effort_level: "xhigh",
+    });
+  });
+
+  it("rejects an empty provider list, duplicate providers, and an unconfigured default", () => {
+    expect(() => parseBotConfig(`${validYaml}claude:\n  providers: []\n`))
+      .toThrow(/at least one provider/);
+    expect(() => parseBotConfig(`${validYaml}claude:
+  providers:
+    - value: kimi
+      label: Moonshot Kimi
+    - value: kimi
+      label: Kimi again
+`)).toThrow(/duplicate provider/);
+    expect(() => parseBotConfig(`${validYaml}claude:
+  default_provider: glm
+  providers:
+    - value: kimi
+      label: Moonshot Kimi
+`)).toThrow(/claude\.providers values/);
+  });
+
+  it("rejects invalid provider identifiers, base URLs, and effort levels", () => {
+    expect(() => parseBotConfig(`${validYaml}claude:
+  providers:
+    - value: Moonshot Kimi
+      label: Moonshot Kimi
+`)).toThrow(/lowercase letters, digits, dots, dashes, or underscores/);
+    expect(() => parseBotConfig(`${validYaml}claude:
+  providers:
+    - value: kimi
+      label: Moonshot Kimi
+      base_url: gateway.example.com
+`)).toThrow(/valid http:\/\/ or https:\/\/ URL/);
+    expect(() => parseBotConfig(`${validYaml}claude:
+  providers:
+    - value: kimi
+      label: Moonshot Kimi
+      effort_level: extreme
+`)).toThrow(/must be one of low, medium, high, or xhigh/);
+  });
 });
 
 describe("trusted configuration location", () => {
@@ -241,6 +317,31 @@ describe("trusted configuration location", () => {
 });
 
 describe("configuration lifecycle", () => {
+  it("refuses the retired CLAUDE_MODEL variable with a migration message", () => {
+    const originalEnvironment = { ...process.env };
+    const root = path.parse(process.cwd()).root;
+    process.env = {
+      ...originalEnvironment,
+      DISCORD_BOT_TOKEN: "token",
+      BASE_PROJECT_DIR: path.join(root, "projects"),
+      BOT_CONFIG_DIR: path.join(root, "trusted-bot-config"),
+      CLAUDE_MODEL: "opus",
+    };
+    mockLocation();
+    vi.spyOn(fs, "readFileSync").mockImplementation((target) => (
+      String(target) === "/proc/self/mountinfo" ? "" : validYaml
+    ) as never);
+    vi.spyOn(fs, "accessSync").mockImplementation(() => {
+      throw Object.assign(new Error("read only"), { code: "EACCES" });
+    });
+
+    try {
+      expect(() => loadConfig()).toThrow(/claude\.providers entry/);
+    } finally {
+      process.env = originalEnvironment;
+    }
+  });
+
   it("loads and merges config once without hot reload", () => {
     const originalEnvironment = { ...process.env };
     const root = path.parse(process.cwd()).root;
