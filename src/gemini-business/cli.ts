@@ -27,15 +27,15 @@ import { checkAccountCredentials } from "./signin.js";
 import type { ConfiguredAccount } from "./types.js";
 
 const USAGE = [
-  "Usage: npm run gemini -- login [account-name] [--force] [--no-sso] [--provider <name>] [--team-id <uuid>]",
+  "Usage: npm run gemini -- login [account-name] [--force] [--no-sso] [--provider <name>]",
   "",
   "  Sign in to Gemini Business in a headless Chrome window and store the",
   `  account in ${GEMINI_ACCOUNTS_FILE_NAME}, which the bot reads at startup.`,
+  "  The workspace comes from workspace_id in proxy.yaml.",
   "",
   "  --force            skip the stored-credential check and always open the browser",
   "  --no-sso           do not drive the identity-provider form; sign in by hand",
   "  --provider <name>  Workforce Identity Federation provider (default GEMINI_SSO_PROVIDER)",
-  "  --team-id <uuid>   workspace id after /cid/ in the app URL (default GEMINI_SSO_TEAM_ID)",
 ].join("\n");
 
 interface ParsedFlags {
@@ -43,7 +43,6 @@ interface ParsedFlags {
   force: boolean;
   noSso: boolean;
   provider?: string;
-  teamId?: string;
 }
 
 function parseFlags(args: string[]): ParsedFlags {
@@ -54,12 +53,12 @@ function parseFlags(args: string[]): ParsedFlags {
     const flag = args[index];
     if (flag === "--force") { flags.force = true; continue; }
     if (flag === "--no-sso") { flags.noSso = true; continue; }
-    if (flag === "--provider" || flag === "--team-id") {
+    if (flag === "--provider") {
       const value = args[index + 1];
       if (value === undefined || value.startsWith("--")) {
         throw new Error(`Missing value for ${flag}`);
       }
-      if (flag === "--provider") flags.provider = value; else flags.teamId = value;
+      flags.provider = value;
       index++;
       continue;
     }
@@ -102,15 +101,19 @@ async function login(args: string[]): Promise<void> {
     }
   }
 
-  const teamId = flags.teamId ?? sso.teamId ?? existing?.sso.team_id;
-  const provider = flags.provider ?? sso.provider ?? existing?.sso.provider;
+  // The workspace is deployment configuration, so `proxy.yaml` is required
+  // before an account can be captured for it.
+  if (!existing) {
+    throw new Error(`Cannot capture an account without ${proxyConfigPath(configDirectory)}: it defines workspace_id.`);
+  }
+  const teamId = existing.workspace_id;
+  const provider = flags.provider ?? sso.provider ?? existing.sso.provider;
 
   console.log("Gemini Business sign-in");
   console.log("-----------------------");
   if (flags.noSso) {
     // Nothing is automated, so the window must be visible for a person to use.
-    console.log("A Chrome window will open. Sign in and open the Gemini Business chat there:");
-    console.log("the workspace id is read from the app's own network requests.");
+    console.log("A Chrome window will open. Sign in and open the Gemini Business chat there.");
   } else {
     console.log("A headless Chrome window will sign in automatically.");
   }
@@ -125,12 +128,13 @@ async function login(args: string[]): Promise<void> {
     name: accountName,
     headless: !flags.noSso,
     disableSso: flags.noSso,
-    ...(provider || teamId ? { sso: { provider, teamId } } : {}),
+    sso: { provider, teamId },
   });
   const credentials = await auth.captureCredentials((message) => console.log(message));
   const account: ConfiguredAccount = {
     name: accountName,
-    team_id: credentials.team_id,
+    // The configured workspace, not the session's own report.
+    team_id: teamId,
     cookies: credentials.cookies,
     csesidx: credentials.csesidx,
     user_agent: credentials.user_agent,

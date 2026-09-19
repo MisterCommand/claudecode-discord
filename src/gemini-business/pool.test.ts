@@ -8,8 +8,11 @@ import type { GeminiBusinessConfig } from "./config.js";
 import type { ConfiguredAccount } from "./types.js";
 import type { CredentialCheck, SignInOptions } from "./signin.js";
 
+const WORKSPACE = "45e94c0b-fb14-4185-8b4b-5a365c8bc047";
+
 function config(overrides: Partial<GeminiBusinessConfig> = {}): GeminiBusinessConfig {
   return {
+    workspace_id: WORKSPACE,
     server: { host: "127.0.0.1", port: 0, api_keys: ["sk-test"], default_model: "gemini-3.8-flash" },
     pool: { rotation_strategy: "round-robin", max_retries: 3, retry_delay: 1000, error_threshold: 3 },
     sso: { enabled: true },
@@ -20,7 +23,7 @@ function config(overrides: Partial<GeminiBusinessConfig> = {}): GeminiBusinessCo
 function account(name: string, enabled = true): ConfiguredAccount {
   return {
     name,
-    team_id: `team-${name}`,
+    team_id: WORKSPACE,
     cookies: { secure_c_ses: `${name}-ses`, host_c_oses: `${name}-oses` },
     csesidx: "1",
     enabled,
@@ -35,7 +38,7 @@ function storeAccounts(directory: string, accounts: ConfiguredAccount[]): void {
 
 const captured: ConfiguredAccount = {
   name: "refreshed",
-  team_id: "team-new",
+  team_id: WORKSPACE,
   cookies: { secure_c_ses: "CSE.new", host_c_oses: "COS.new" },
   csesidx: "999",
   user_agent: "agent/1",
@@ -228,6 +231,75 @@ describe("startup sign-in", () => {
       sso,
       deps: { checkCredentials: vi.fn(), signIn },
     })).rejects.toThrow(/account is locked/);
+  });
+
+  it("refuses to serve an account captured for another workspace", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const directory = tempDirectory();
+    storeAccounts(directory, [{ ...account("foreign"), team_id: "11111111-2222-3333-4444-555555555555" }]);
+
+    const signIn = vi.fn(async () => {
+      throw new Error("no browser available");
+    });
+    const check = okCheck();
+    const pool = await startGeminiBusinessPool(config({ sso: { enabled: true, name: "fresh" } }), {
+      dataDirectory: directory,
+      sso,
+      deps: { checkCredentials: check, signIn },
+    });
+
+    try {
+      // The mismatched capture is never probed (its tokens are scoped to a
+      // workspace this deployment does not use) and never enters rotation, so
+      // turns cannot fail against an unreachable workspace.
+      expect(check).not.toHaveBeenCalled();
+      expect(pool.accountNames()).toEqual([]);
+      expect(warn.mock.calls.flat().join(" ")).toMatch(/belongs to workspace 11111111/);
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it("re-captures a mismatched account for the configured workspace", async () => {
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const directory = tempDirectory();
+    storeAccounts(directory, [{ ...account("foreign"), team_id: "11111111-2222-3333-4444-555555555555" }]);
+
+    const signIn = signInMock();
+    const pool = await startGeminiBusinessPool(config(), {
+      dataDirectory: directory,
+      sso,
+      deps: { checkCredentials: okCheck(), signIn },
+    });
+
+    try {
+      // The capture is reissued against this deployment's workspace.
+      expect(signIn).toHaveBeenCalledOnce();
+      expect(signIn.mock.calls[0][0]).toMatchObject({ teamId: WORKSPACE });
+      expect(new GeminiAccountStore(directory).read()[0].team_id).toBe(WORKSPACE);
+      expect(pool.accountNames()).toEqual(["foreign"]);
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it("keeps a stale account in rotation when a browser is unavailable", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const directory = tempDirectory();
+    storeAccounts(directory, [account("stale")]);
+
+    const pool = await startGeminiBusinessPool(config(), {
+      dataDirectory: directory,
+      deps: { checkCredentials: async () => ({ ok: false, error: "401" }), signIn: signInMock() },
+    });
+
+    try {
+      // Same workspace, so a recovered cookie would still work: it stays.
+      expect(pool.accountNames()).toEqual(["stale"]);
+      expect(warn.mock.calls.flat().join(" ")).toMatch(/could not be refreshed/);
+    } finally {
+      await pool.close();
+    }
   });
 
   it("serves a previously captured account without an environment password", async () => {

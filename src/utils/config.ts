@@ -162,7 +162,6 @@ const envSchema = z.object({
   GEMINI_SSO_EMAIL: optionalEmail,
   GEMINI_SSO_PASSWORD: optionalPassword,
   GEMINI_SSO_TOTP_SECRET: optionalTotpSecret,
-  GEMINI_SSO_TEAM_ID: optionalTrimmedString,
   GEMINI_SSO_PROVIDER: optionalTrimmedString,
   CHROME_PATH: optionalTrimmedString,
   HONEYCOMB_API_KEY: z

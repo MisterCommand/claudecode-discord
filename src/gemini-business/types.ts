@@ -20,7 +20,13 @@ export interface PoolSettings {
   error_threshold: number;      // consecutive errors before an account is disabled
 }
 
-/** Exactly what a user writes in config.ts — no runtime/cache fields. */
+/**
+ * One Gemini Business account as the runtime store holds it.
+ *
+ * `team_id` is the configured `workspace_id` the capture belongs to, written at
+ * capture time rather than read back from the session: the deployment serves one
+ * fixed workspace.
+ */
 export interface ConfiguredAccount {
   name: string;
   team_id: string;
@@ -39,9 +45,8 @@ export interface AppConfig {
 }
 
 /**
- * Settings for the browser re-login flow. The workspace id is not here: it is
- * the account's own `team_id`, which is stable and already persisted per
- * account. Only the provider is deployment-wide.
+ * Settings for the browser re-login flow. The workspace is not here: it is the
+ * deployment's fixed `workspace_id` in `proxy.yaml`.
  */
 export interface SsoConfig {
   /** Provider name, `locations/<location>/workforcePools/<pool>/providers/<provider>` */
@@ -311,8 +316,9 @@ export interface SsoOptions {
   /** Base32 authenticator-app secret for the MFA prompt; falls back to `GEMINI_SSO_TOTP_SECRET` */
   totpSecret?: string;
   /**
-   * Workspace id (`/home/cid/<team_id>`), used to open the app after sign-in so
-   * it reports its own `configId`. Falls back to `GEMINI_SSO_TEAM_ID`.
+   * Workspace id (`/home/cid/<workspace_id>`), used to open the app after
+   * sign-in so it reports its own `configId`. Supplied from the deployment's
+   * configured `workspace_id`.
    */
   teamId?: string;
   /** How long to wait for sign-in to finish, in ms */

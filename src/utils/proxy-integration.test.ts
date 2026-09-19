@@ -19,7 +19,8 @@ tools:
   restricted_denied: []
 `;
 
-const proxyYaml = `server:
+const proxyYaml = `workspace_id: 45e94c0b-fb14-4185-8b4b-5a365c8bc047
+server:
   port: 18123
   api_keys:
     - sk-local-1
@@ -99,6 +100,7 @@ describe("embedded Gemini Business pool startup", () => {
 
     const config = await loadConfig();
     expect(config.geminiBusiness?.server.port).toBe(18123);
+    expect(config.geminiBusiness?.workspace_id).toBe("45e94c0b-fb14-4185-8b4b-5a365c8bc047");
     expect(config.claude.providers[0]).toEqual({
       value: "gemini-business",
       label: "Gemini Business (embedded proxy)",

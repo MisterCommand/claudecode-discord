@@ -15,6 +15,11 @@
 # captures into it: accounts are captured by the sign-in below and kept in
 # gemini-accounts.json beside data.db.
 
+# Required. The one workspace this deployment serves. It is the workspace id
+# after /cid/ in the Gemini Business app URL, and every upstream request and
+# sign-in targets it, so a capture from any other workspace is rejected.
+workspace_id: 45e94c0b-fb14-4185-8b4b-5a365c8bc047
+
 # Required. The pool authenticates its clients; an unauthenticated pool on a
 # shared host would let any local process drive the captured accounts.
 server:
@@ -38,8 +43,6 @@ sso:
   # provider: locations/global/workforcePools/<pool>/providers/<provider>
   # Account name captured when none exists yet (default: default).
   # name: default
-  # Workspace id for a brand-new account; defaults to GEMINI_SSO_TEAM_ID.
-  # team_id: 45e94c0b-fb14-4185-8b4b-5a365c8bc047
 
 # Optional. Every default below is valid, so the whole section can be omitted.
 pool:

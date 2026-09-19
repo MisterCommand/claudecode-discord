@@ -54,7 +54,6 @@ async function main() {
         email: config.GEMINI_SSO_EMAIL,
         password: config.GEMINI_SSO_PASSWORD,
         totpSecret: config.GEMINI_SSO_TOTP_SECRET,
-        teamId: config.GEMINI_SSO_TEAM_ID,
         provider: config.GEMINI_SSO_PROVIDER,
       },
     });

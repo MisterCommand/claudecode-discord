@@ -41,7 +41,9 @@ const csesidxSchema = z.preprocess(
  * One Gemini Business account as the runtime store persists it.
  *
  * Accounts are never written in `proxy.yaml`: the bot captures them through the
- * startup sign-in and keeps them in `gemini-accounts.json`.
+ * startup sign-in and keeps them in `gemini-accounts.json`. `team_id` records
+ * which workspace the capture belongs to, and the pool refuses a capture from
+ * any workspace other than the configured `workspace_id`.
  */
 export const configuredAccountSchema = z.strictObject({
   name: requiredString,
@@ -60,19 +62,21 @@ export const configuredAccountSchema = z.strictObject({
  *
  * The email, password, and authenticator secret are never written here: they
  * live in the environment, so this section only decides whether the bot signs in
- * and which workspace it targets.
+ * and how the provider is reached.
  */
 const ssoSchema = z.strictObject({
   enabled: z.boolean().default(true),
   /** Workforce Identity Federation provider name; defaults to GEMINI_SSO_PROVIDER. */
   provider: trimmedString,
-  /** Account name to record when no account exists yet; defaults to "default". */
+  /** Account name to record for the first capture; defaults to "default". */
   name: trimmedString,
-  /** Workspace id for a brand-new account; defaults to GEMINI_SSO_TEAM_ID. */
-  team_id: trimmedString,
 });
 
 const proxyConfigSchema = z.strictObject({
+  // The one workspace this deployment serves. Every upstream call and every
+  // sign-in targets it, so it is a fixed fact of the deployment rather than
+  // something read back from each captured session.
+  workspace_id: requiredString,
   // `server` is required rather than defaulted: a defaulted section bypasses its
   // own inner constraints, and an unvalidated `api_keys` would silently produce
   // an unauthenticated pool that any local process could drive.

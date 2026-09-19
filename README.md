@@ -510,6 +510,9 @@ Create `proxy.yaml` in `BOT_CONFIG_DIR` from
 [proxy.example.yaml](proxy.example.yaml):
 
 ```yaml
+# The one workspace this deployment serves: the id after /cid/ in the app URL.
+workspace_id: 45e94c0b-fb14-4185-8b4b-5a365c8bc047
+
 server:
   port: 8000
   api_keys:
@@ -521,10 +524,9 @@ sso:
   enabled: true
   # provider: locations/global/workforcePools/<pool>/providers/<provider>
   # name: default        # account name captured when none exists yet
-  # team_id: <uuid>      # workspace id for a brand-new account
 ```
 
-`server` is required; `sso` and `pool` have usable defaults. Accounts are **not**
+`workspace_id` and `server` are required; `sso` and `pool` have usable defaults. Accounts are **not**
 listed here — this file is read-only, so the bot captures them at startup and
 keeps them in `gemini-accounts.json` next to `data.db`. The file is trusted
 policy exactly like `config.yaml`: read once at startup, never hot reloaded, and
@@ -566,8 +568,7 @@ GEMINI_SSO_PASSWORD=replace-with-the-account-password
 # Base32 secret for an authenticator-app MFA prompt. Other MFA and consent
 # prompts need a human: run the login command below with --no-sso.
 GEMINI_SSO_TOTP_SECRET=
-# Optional defaults for a brand-new account.
-GEMINI_SSO_TEAM_ID=
+# Optional: Workforce Identity Federation provider used when signing in.
 GEMINI_SSO_PROVIDER=
 ```
 

@@ -150,14 +150,12 @@ describe("environment configuration", () => {
       GEMINI_SSO_EMAIL: " student@example.edu ",
       GEMINI_SSO_PASSWORD: " password with spaces ",
       GEMINI_SSO_TOTP_SECRET: " 7bqg m6mz VHVH NSTT ",
-      GEMINI_SSO_TEAM_ID: " 45e94c0b-fb14-4185-8b4b-5a365c8bc047 ",
       CHROME_PATH: " /usr/bin/chromium ",
     });
     expect(parsed).toMatchObject({
       GEMINI_SSO_EMAIL: "student@example.edu",
       GEMINI_SSO_PASSWORD: " password with spaces ",
       GEMINI_SSO_TOTP_SECRET: "7bqg m6mz VHVH NSTT",
-      GEMINI_SSO_TEAM_ID: "45e94c0b-fb14-4185-8b4b-5a365c8bc047",
       CHROME_PATH: "/usr/bin/chromium",
     });
   });

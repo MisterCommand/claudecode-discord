@@ -33,7 +33,6 @@ export interface GeminiBusinessPoolOptions {
     email?: string;
     password?: string;
     totpSecret?: string;
-    teamId?: string;
     provider?: string;
   };
   /**
@@ -109,11 +108,20 @@ async function refreshAccounts(
       continue;
     }
 
-    let check: CredentialCheck;
-    try {
-      check = await deps.checkCredentials(account);
-    } catch (error) {
-      check = { ok: false, error: error instanceof Error ? error.message : String(error) };
+    // A capture for another workspace cannot serve this deployment: the tokens
+    // and session are workspace-scoped, so reusing it would fail every request.
+    // Treat it as missing credentials and capture a fresh account instead.
+    const foreignWorkspace = account.team_id !== config.workspace_id;
+
+    let check: CredentialCheck = foreignWorkspace
+      ? { ok: false, error: `captured for workspace ${account.team_id}` }
+      : { ok: false, error: "not checked" };
+    if (!foreignWorkspace) {
+      try {
+        check = await deps.checkCredentials(account);
+      } catch (error) {
+        check = { ok: false, error: error instanceof Error ? error.message : String(error) };
+      }
     }
 
     if (check.ok) {
@@ -122,23 +130,30 @@ async function refreshAccounts(
       continue;
     }
 
-    // Without credentials there is nothing to sign in with, so never open a
-    // browser: report what to set and let the upstream failure surface per turn.
-    if (!ssoConfigured) {
-      console.warn(
-        `Gemini Business account "${account.name}" could not be refreshed (${check.error.split("\n")[0]}). `
-        + "Set GEMINI_SSO_EMAIL and GEMINI_SSO_PASSWORD to enable automatic sign-in, "
-        + "or run `npm run gemini -- login` to capture a fresh account.",
-      );
-      result.push(account);
-      continue;
+    if (foreignWorkspace) {
+      logSignIn("gemini_business_account_workspace_mismatch", account.name, {
+        captured_workspace: account.team_id,
+        configured_workspace: config.workspace_id,
+      });
     }
 
-    if (!signInEnabled) {
-      console.warn(
-        `Gemini Business account "${account.name}" could not be refreshed (${check.error.split("\n")[0]}); `
-        + "startup sign-in is disabled by sso.enabled in proxy.yaml.",
-      );
+    // Without credentials there is nothing to sign in with, so never open a
+    // browser: report what to set and let the upstream failure surface per turn.
+    if (!ssoConfigured || !signInEnabled) {
+      // A stale cookie may recover on its own, so it stays in rotation. A
+      // capture from another workspace never can, so it is dropped instead of
+      // failing every turn.
+      const reason = !ssoConfigured
+        ? "set GEMINI_SSO_EMAIL and GEMINI_SSO_PASSWORD to enable automatic sign-in, or run `npm run gemini -- login` to capture a fresh account"
+        : "startup sign-in is disabled by sso.enabled in proxy.yaml";
+      if (foreignWorkspace) {
+        console.warn(
+          `Gemini Business account "${account.name}" was captured for workspace ${account.team_id}, but this deployment serves `
+          + `${config.workspace_id}. It is excluded from rotation; ${reason}.`,
+        );
+        continue;
+      }
+      console.warn(`Gemini Business account "${account.name}" could not be refreshed (${check.error.split("\n")[0]}); ${reason}.`);
       result.push(account);
       continue;
     }
@@ -149,7 +164,7 @@ async function refreshAccounts(
       captured = await deps.signIn({
         name: account.name,
         provider: config.sso.provider ?? sso?.provider ?? DEFAULT_SSO_PROVIDER,
-        teamId: account.team_id || config.sso.team_id || sso?.teamId,
+        teamId: config.workspace_id,
         headless: true,
         log: (message) => console.log(`[gemini-business:${account.name}] ${message}`),
       });
@@ -158,6 +173,15 @@ async function refreshAccounts(
       // work, and the operator can fix the credentials and restart.
       const detail = cleanSignInError(error, signInSecrets(options));
       logSignIn("gemini_business_account_sign_in_failed", account.name, { reason: detail });
+      if (foreignWorkspace) {
+        // Keeping it would keep failing every turn for a workspace that can
+        // never be reached from this deployment.
+        console.warn(
+          `Gemini Business account "${account.name}" belongs to workspace ${account.team_id}, not ${config.workspace_id}, `
+          + `and re-capturing it failed: ${detail}. It is excluded from rotation.`,
+        );
+        continue;
+      }
       console.warn(
         `Sign-in for Gemini Business account "${account.name}" failed: ${detail}. `
         + "The account keeps its previous credentials; run `npm run gemini -- login --no-sso` to sign in by hand.",
@@ -193,7 +217,7 @@ async function refreshAccounts(
       captured = await deps.signIn({
         name,
         provider: config.sso.provider ?? sso?.provider ?? DEFAULT_SSO_PROVIDER,
-        teamId: config.sso.team_id ?? sso?.teamId,
+        teamId: config.workspace_id,
         headless: true,
         log: (message) => console.log(`[gemini-business:${name}] ${message}`),
       });

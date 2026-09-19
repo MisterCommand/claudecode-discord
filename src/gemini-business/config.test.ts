@@ -8,7 +8,10 @@ import {
 import { geminiBusinessCredentialEnvironmentOverrides } from "./credentials.js";
 import { withGeminiBusinessProvider } from "../utils/config.js";
 
+const WORKSPACE = "45e94c0b-fb14-4185-8b4b-5a365c8bc047";
+
 const valid = `
+workspace_id: ${WORKSPACE}
 server:
   api_keys:
     - sk-local-1
@@ -38,6 +41,12 @@ describe("proxy.yaml parsing", () => {
       error_threshold: 3,
     });
     expect(config.sso).toEqual({ enabled: true });
+    expect(config.workspace_id).toBe(WORKSPACE);
+  });
+
+  it("requires the workspace the deployment serves", () => {
+    const problems = parseProxyConfig(valid.replace(`workspace_id: ${WORKSPACE}\n`, "")).problems.join("\n");
+    expect(problems).toMatch(/workspace_id/);
   });
 
   it("does not accept accounts, which are captured rather than configured", () => {
@@ -62,15 +71,18 @@ describe("proxy.yaml parsing", () => {
     const config = parsed(`${valid}
 sso:
   provider: locations/global/workforcePools/p/providers/idp
-  team_id: 11111111-2222-3333-4444-555555555555
   name: primary
 `);
     expect(config.sso).toEqual({
       enabled: true,
       provider: "locations/global/workforcePools/p/providers/idp",
-      team_id: "11111111-2222-3333-4444-555555555555",
       name: "primary",
     });
+  });
+
+  it("keeps the workspace out of sso, where it would not apply when sign-in is off", () => {
+    expect(parseProxyConfig(`${valid}sso:\n  team_id: ${WORKSPACE}\n`).problems.join("\n"))
+      .toMatch(/Unrecognized key/);
   });
 
   it("rejects unknown keys and an invalid sso section", () => {
@@ -160,7 +172,7 @@ describe("provider injection", () => {
 describe("credential isolation", () => {
   it("claims every sign-in variable so it is removed from the Claude subprocess", () => {
     const overrides = geminiBusinessCredentialEnvironmentOverrides();
-    for (const name of ["GEMINI_SSO_EMAIL", "GEMINI_SSO_PASSWORD", "GEMINI_SSO_TOTP_SECRET", "GEMINI_SSO_TEAM_ID", "GEMINI_SSO_PROVIDER"]) {
+    for (const name of ["GEMINI_SSO_EMAIL", "GEMINI_SSO_PASSWORD", "GEMINI_SSO_TOTP_SECRET", "GEMINI_SSO_PROVIDER"]) {
       expect(overrides[name]).toBeUndefined();
       expect(overrides).toHaveProperty(name);
     }

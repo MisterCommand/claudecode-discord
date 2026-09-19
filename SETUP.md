@@ -115,7 +115,6 @@ HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 # GEMINI_SSO_EMAIL=you@example.edu
 # GEMINI_SSO_PASSWORD=replace-with-the-account-password
 # GEMINI_SSO_TOTP_SECRET=
-# GEMINI_SSO_TEAM_ID=
 # GEMINI_SSO_PROVIDER=
 # CHROME_PATH=
 ```
@@ -134,7 +133,6 @@ HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 | `GEMINI_SSO_EMAIL` | Optional Gemini Business sign-in email; requires `GEMINI_SSO_PASSWORD` |
 | `GEMINI_SSO_PASSWORD` | Gemini Business sign-in password; never forwarded to the Claude subprocess |
 | `GEMINI_SSO_TOTP_SECRET` | Optional base32 authenticator-app secret for the sign-in MFA prompt |
-| `GEMINI_SSO_TEAM_ID` | Optional workspace id used when capturing a new account |
 | `GEMINI_SSO_PROVIDER` | Optional Workforce Identity Federation provider name for the sign-in flow |
 | `CHROME_PATH` | Optional Chrome/Chromium binary for the sign-in flow; the Docker image sets it to `/usr/bin/chromium` |
 | `HONEYCOMB_API_KEY` | Optional Honeycomb ingest key; leaving it blank disables observability export |
@@ -259,8 +257,9 @@ if the directory or file is missing, writable, linked, or invalid.
 
 Copy `proxy.example.yaml` to `proxy.yaml` in the same directory to run a Gemini
 Business account pool inside the bot process and offer it as the
-`gemini-business` provider in `/model`. `server` (with at least one client API
-key) is required; `sso` and `pool` have usable defaults. Accounts are not listed
+`gemini-business` provider in `/model`. `workspace_id` (the deployment's Gemini
+Business workspace) and `server` (with at least one client API key) are required;
+`sso` and `pool` have usable defaults. Accounts are not listed
 in this file — the bot captures them at startup and keeps them in
 `gemini-accounts.json` beside `data.db`. `proxy.yaml` is held to the same rules as
 `config.yaml`:
@@ -442,13 +441,14 @@ For Docker, authenticate inside the persistent `/home/node` volume.
 - A rejected sign-in is reported with the provider's own reason, and the bot still starts. Fix the credentials and restart, or run `npm run gemini -- login --no-sso` to sign in by hand.
 - An MFA prompt the automation cannot clear needs a human: re-run with `--no-sso`.
 - Install Chrome, or set `CHROME_PATH` to a Chromium binary. The Docker image bundles Chromium and sets this for you.
-- If the window closes before the workspace id is read, pass `--team-id`, or set `GEMINI_SSO_TEAM_ID`.
+- If the sign-in cannot confirm the workspace, check `workspace_id` in `proxy.yaml` against the id after `/cid/` in the app URL.
 - Set `sso.enabled: false` in `proxy.yaml` to stop automatic sign-in entirely.
 
 ### Pool accounts are disabled or requests fail
 
 - Run `npm run gemini -- check` to see which accounts still refresh their credentials.
 - An account is disabled after `pool.error_threshold` consecutive errors; expired cookies need a new `npm run gemini -- login`.
+- An account captured for a different workspace is excluded from rotation; the log line `gemini_business_account_workspace_mismatch` names both ids. Re-capture with `npm run gemini -- login`, or correct `workspace_id`.
 
 ### Native SQLite installation fails
 

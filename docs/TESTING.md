@@ -59,7 +59,7 @@ npx tsc --noEmit      # Type check only (no build output)
 
 - Required environment values and defaults
 - Optional all-or-none Exchange variables, HTTPS enforcement, and email validation
-- Optional all-or-none Gemini Business sign-in credentials, base32 TOTP validation, and trimming of `GEMINI_SSO_TEAM_ID`/`PROVIDER`/`CHROME_PATH`
+- Optional all-or-none Gemini Business sign-in credentials, base32 TOTP validation, and trimming of `GEMINI_SSO_PROVIDER`/`CHROME_PATH`
 - Strict version 1 YAML, required arrays, unknown/duplicate keys, quoted Discord IDs, and unique values
 - Repository and Claude tool-rule syntax
 - Default, empty, trimmed, and normalized `claude` provider sections plus rejected provider identifiers, base URLs, effort levels, duplicates, and defaults
@@ -101,12 +101,13 @@ npx tsc --noEmit      # Type check only (no build output)
 - Streaming chunks split mid tool call, SSE-framed deployments, and thought-reply filtering
 - Account rotation, disabled-account skipping, the error threshold, and per-account session caching
 - HTTP routes: auth by `x-api-key`/`Bearer`, Anthropic streaming frames, `[DONE]` termination, 400/401/500 dialects, and unknown paths
-- `proxy.yaml` schema: documented defaults, unquoted `csesidx` normalization, mandatory API key, duplicate names, and a fully disabled pool
+- `proxy.yaml` schema: the required `workspace_id`, documented defaults, a mandatory API key, a rejected `accounts` section, and `sso.team_id` staying out of scope
 - Chrome discovery order (explicit path, `CHROME_PATH`, detected installation) and the descriptive failure
 - Container detection driving the `--no-sandbox`/`--disable-dev-shm-usage` flags, and that a desktop host keeps its sandbox
 - Startup sign-in policy: healthy cookies never open a browser, a rejected credential signs in and persists, `sso.enabled: false` and missing credentials never open one, a first account is captured when none exists, and a failed sign-in is reported without taking the bot down
 - Captured-account persistence: replacement by name, structural rejection of a malformed capture, and corrupt-file recovery
-- `proxy.yaml` over a captured account of the same name, and secret redaction in sign-in failures
+- Workspace binding: a capture from another workspace is never probed or served, is re-captured against the configured workspace, and a same-workspace stale account stays in rotation
+- Secret redaction in sign-in failures
 
 ## Adding New Tests
 

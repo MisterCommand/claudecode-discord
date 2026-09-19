@@ -141,7 +141,7 @@ export class SsoAuthenticator {
   private readonly email?: string;
   private readonly password?: string;
   private readonly totpSecret?: string;
-  private readonly teamId?: string;
+  private readonly teamId: string;
   private readonly timeout: number;
 
   constructor(options: SsoOptions = {}) {
@@ -149,7 +149,8 @@ export class SsoAuthenticator {
     this.email = options.email || process.env.GEMINI_SSO_EMAIL;
     this.password = options.password || process.env.GEMINI_SSO_PASSWORD;
     this.totpSecret = options.totpSecret || process.env.GEMINI_SSO_TOTP_SECRET;
-    this.teamId = options.teamId || process.env.GEMINI_SSO_TEAM_ID;
+    // Supplied by the caller from the deployment's configured `workspace_id`.
+    this.teamId = options.teamId ?? '';
     this.timeout = options.timeout ?? DEFAULT_TIMEOUT_MS;
   }
 
@@ -320,15 +321,10 @@ export class SsoAuthenticator {
 
   /**
    * Open the workspace so the app issues its first `configId`-bearing call.
-   * The app root 404s once the broker is done, so without a workspace id the
-   * caller would sit waiting for a request the page never makes.
+   * The app root 404s once the broker is done, so without opening the workspace
+   * the caller would sit waiting for a request the page never makes.
    */
   private async openWorkspace(page: Page, log: (message: string) => void): Promise<void> {
-    if (!this.teamId) {
-      log('   Workspace id unknown; set GEMINI_SSO_TEAM_ID to open the app automatically.');
-      return;
-    }
-
     const target = `${APP_ORIGIN}/home/cid/${this.teamId}`;
     log(`   Opening workspace ${this.teamId}`);
     await page.goto(target, { waitUntil: 'domcontentloaded', timeout: 30_000 }).catch(async (error) => {

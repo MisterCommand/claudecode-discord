@@ -17,6 +17,7 @@ export const DEFAULT_SIGN_IN_TIMEOUT_MS = 5 * 60 * 1000;
 export interface SignInOptions {
   name: string;
   provider?: string;
+  /** The deployment's configured workspace; recorded on the captured account. */
   teamId?: string;
   headless?: boolean;
   timeoutMs?: number;
@@ -69,7 +70,9 @@ export async function signInAccount(options: SignInOptions): Promise<ConfiguredA
   const credentials = await auth.captureCredentials(log);
   return {
     name: options.name,
-    team_id: credentials.team_id,
+    // The configured workspace, not the session's own report: the deployment
+    // serves one workspace, and every request is issued against this value.
+    team_id: options.teamId ?? credentials.team_id,
     cookies: credentials.cookies,
     csesidx: credentials.csesidx,
     user_agent: credentials.user_agent,
