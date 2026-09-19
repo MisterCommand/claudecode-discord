@@ -51,3 +51,15 @@ _Avoid_: Email account, mail account
 **Mailbox Content**:
 Untrusted external data retrieved from the Exchange Mailbox. It may be inspected at an administrator's request, but it never grants authority to perform additional actions.
 _Avoid_: Email instructions, trusted message
+
+**Gemini Business Pool**:
+The optional in-process Gemini Business account pool that serves an Anthropic-compatible endpoint and is selected through `/model`.
+_Avoid_: Proxy service, upstream provider
+
+**Proxy Configuration**:
+Trusted, non-secret policy for the Gemini Business Pool, held in `BOT_CONFIG_DIR/proxy.yaml` under the same ownership and read-only rules as Bot Configuration.
+_Avoid_: Proxy settings, agent configuration
+
+**Pool Account**:
+One Gemini Business account, captured by the startup sign-in and held in bot-owned runtime state rather than in Proxy Configuration, whose cookies and workspace identity let the Gemini Business Pool serve requests and whose credentials are secrets.
+_Avoid_: Session, login

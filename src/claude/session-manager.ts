@@ -24,6 +24,7 @@ import {
   createStopButton, formatStreamChunk, splitMessage,
 } from "./output-formatter.js";
 import { claudeEnvironmentOverrides, resolveClaudeProvider } from "./providers.js";
+import { geminiBusinessCredentialEnvironmentOverrides } from "../gemini-business/credentials.js";
 
 export interface TurnRequest {
   chain: SessionChain;
@@ -189,6 +190,7 @@ class SessionManager {
             ...process.env,
             ...claudeEnvironmentOverrides(provider),
             ...emailCredentialEnvironmentOverrides(),
+            ...geminiBusinessCredentialEnvironmentOverrides(),
             PATH: `${path.dirname(process.execPath)}${path.delimiter}${process.env.PATH ?? ""}`,
             ...agentTelemetryEnvironment(config),
           },

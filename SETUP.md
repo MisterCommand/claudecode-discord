@@ -109,6 +109,15 @@ SHOW_COST=true
 # EWS_PASSWORD=replace-with-the-mailbox-password
 # HONEYCOMB_API_KEY=your_ingest_key
 HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
+# Optional: credentials for the embedded Gemini Business sign-in flow
+# (`npm run gemini -- login`). Set the email and password together, or leave
+# both blank. The running bot signs in with these; captured accounts live in
+# GEMINI_SSO_EMAIL=you@example.edu
+# GEMINI_SSO_PASSWORD=replace-with-the-account-password
+# GEMINI_SSO_TOTP_SECRET=
+# GEMINI_SSO_TEAM_ID=
+# GEMINI_SSO_PROVIDER=
+# CHROME_PATH=
 ```
 
 | Variable | Description |
@@ -116,12 +125,18 @@ HONEYCOMB_API_ENDPOINT=https://api.honeycomb.io
 | `DISCORD_BOT_TOKEN` | Bot token from the Discord Developer Portal |
 | `DISCORD_GUILD_ID` | Optional server ID used for configuration context |
 | `BASE_PROJECT_DIR` | Workspace root for registered projects |
-| `BOT_CONFIG_DIR` | Absolute directory containing the required read-only `config.yaml`; must be outside `BASE_PROJECT_DIR` |
+| `BOT_CONFIG_DIR` | Absolute directory containing the required read-only `config.yaml`, and optionally `proxy.yaml`; must be outside `BASE_PROJECT_DIR` |
 | `RATE_LIMIT_PER_MINUTE` | Per-user message limit; defaults to `10` |
 | `SHOW_COST` | Show estimated task cost; defaults to `true` |
 | `EWS_URL` | Optional HTTPS EWS endpoint; requires `EWS_EMAIL` and `EWS_PASSWORD` |
 | `EWS_EMAIL` | On-premises Exchange login and mailbox address |
 | `EWS_PASSWORD` | On-premises Exchange mailbox password; never forwarded to the Claude subprocess |
+| `GEMINI_SSO_EMAIL` | Optional Gemini Business sign-in email; requires `GEMINI_SSO_PASSWORD` |
+| `GEMINI_SSO_PASSWORD` | Gemini Business sign-in password; never forwarded to the Claude subprocess |
+| `GEMINI_SSO_TOTP_SECRET` | Optional base32 authenticator-app secret for the sign-in MFA prompt |
+| `GEMINI_SSO_TEAM_ID` | Optional workspace id used when capturing a new account |
+| `GEMINI_SSO_PROVIDER` | Optional Workforce Identity Federation provider name for the sign-in flow |
+| `CHROME_PATH` | Optional Chrome/Chromium binary for the sign-in flow; the Docker image sets it to `/usr/bin/chromium` |
 | `HONEYCOMB_API_KEY` | Optional Honeycomb ingest key; leaving it blank disables observability export |
 | `HONEYCOMB_API_ENDPOINT` | Honeycomb ingest base URL; defaults to the US endpoint, or use `https://api.eu1.honeycomb.io` for EU |
 
@@ -240,6 +255,48 @@ Stop the bot before changing the file, restore read-only access, and restart;
 configuration is loaded once and is not hot-reloaded. The bot refuses to start
 if the directory or file is missing, writable, linked, or invalid.
 
+### Optional: embedded Gemini Business pool
+
+Copy `proxy.example.yaml` to `proxy.yaml` in the same directory to run a Gemini
+Business account pool inside the bot process and offer it as the
+`gemini-business` provider in `/model`. `server` (with at least one client API
+key) is required; `sso` and `pool` have usable defaults. Accounts are not listed
+in this file — the bot captures them at startup and keeps them in
+`gemini-accounts.json` beside `data.db`. `proxy.yaml` is held to the same rules as
+`config.yaml`:
+
+```bash
+sudo chmod 444 /absolute/path/to/claude-discord-config/proxy.yaml
+```
+
+Replace `config.yaml` with `proxy.yaml` in the `chmod 444`/`icacls` commands
+above to cover it.
+
+The bot signs in at startup. Set the credentials in `.env` (see section 4) and
+it probes each account's stored cookies first, opening a headless browser only
+when they no longer work:
+
+```bash
+# Capture an account deliberately; it is stored for the bot to reuse.
+npm run gemini -- login [account-name]
+# Check proxy.yaml without starting the bot.
+npm run gemini -- validate
+# Refresh every account's credentials and report status.
+npm run gemini -- check
+```
+
+With `GEMINI_SSO_EMAIL` and `GEMINI_SSO_PASSWORD` set and no account configured
+anywhere, the bot captures its first account at startup and writes it to
+`gemini-accounts.json` beside `data.db` (mode `0600`). Set `sso.enabled: false`
+in `proxy.yaml` to stop automatic refreshes. An account whose sign-in is
+rejected keeps its previous credentials and the bot still starts, reporting the
+provider's reason. The sign-in secrets are removed from the Claude subprocess
+environment.
+
+Chrome is required for the sign-in. Native installs use an existing Chrome, or
+`CHROME_PATH` if it is elsewhere; the Docker image bundles Chromium and presets
+`CHROME_PATH`, so nothing else is needed there.
+
 ## 6. Build and Run
 
 ```bash
@@ -291,7 +348,10 @@ docker compose -f compose.example.yml up -d
 ```
 
 The Compose example reads the host config directory from `BOT_CONFIG_DIR`,
-mounts it at `/config` read-only, and supplies `/config` to the container.
+mounts it at `/config` read-only, and supplies `/config` to the container. Keep
+the `/data` volume: besides the SQLite database it holds
+`gemini-accounts.json`, so a captured Gemini Business sign-in survives a
+container replacement.
 
 ## 7. Use the Bot
 
@@ -369,6 +429,26 @@ For Docker, authenticate inside the persistent `/home/node` volume.
 - Confirm the destination channel or thread ID is listed exactly in `access.admin_channels`.
 - Confirm `EWS_URL` is the HTTPS service endpoint, commonly ending in `/EWS/Exchange.asmx`.
 - Confirm NTLM authentication is enabled for the on-premises Exchange EWS virtual directory; Exchange Online is not supported by this integration.
+
+### The gemini-business provider is missing from /model
+
+- Confirm `proxy.yaml` exists in `BOT_CONFIG_DIR` and passes `npm run gemini -- validate`, then restart the bot; configuration is not hot-reloaded.
+- Confirm the bot started the pool: the log line `gemini_business_pool_started` names the URL and enabled accounts.
+- Confirm `proxy.yaml` is read-only and owned by an account other than the bot process, like `config.yaml`.
+
+### The Gemini Business sign-in fails
+
+- Confirm `GEMINI_SSO_EMAIL` and `GEMINI_SSO_PASSWORD` are both set, then restart the bot; startup sign-in runs once per start.
+- A rejected sign-in is reported with the provider's own reason, and the bot still starts. Fix the credentials and restart, or run `npm run gemini -- login --no-sso` to sign in by hand.
+- An MFA prompt the automation cannot clear needs a human: re-run with `--no-sso`.
+- Install Chrome, or set `CHROME_PATH` to a Chromium binary. The Docker image bundles Chromium and sets this for you.
+- If the window closes before the workspace id is read, pass `--team-id`, or set `GEMINI_SSO_TEAM_ID`.
+- Set `sso.enabled: false` in `proxy.yaml` to stop automatic sign-in entirely.
+
+### Pool accounts are disabled or requests fail
+
+- Run `npm run gemini -- check` to see which accounts still refresh their credentials.
+- An account is disabled after `pool.error_threshold` consecutive errors; expired cookies need a new `npm run gemini -- login`.
 
 ### Native SQLite installation fails
 

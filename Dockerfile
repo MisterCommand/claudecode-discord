@@ -25,18 +25,24 @@ ARG TARGETARCH
 ENV NODE_ENV=production \
     HOME=/home/node \
     BASE_PROJECT_DIR=/projects \
-    BOT_CONFIG_DIR=/config
+    BOT_CONFIG_DIR=/config \
+    CHROME_PATH=/usr/bin/chromium
 
 WORKDIR /app
 
+# Chromium backs the Gemini Business sign-in, which runs headless and therefore
+# needs the browser and its shared libraries but no display server, fonts beyond
+# the ones a sign-in form renders, or a desktop stack.
 RUN apt-get update \
     && apt-get install --no-install-recommends -y \
       bash \
       ca-certificates \
+      chromium \
       curl \
       dnsutils \
       fd-find \
       findutils \
+      fonts-liberation \
       g++ \
       gawk \
       gh \
@@ -81,6 +87,8 @@ RUN case "$TARGETARCH" in \
     && mkdir -p /data /projects /home/node \
     && chown -R node:node /data /projects /home/node
 
+# Chromium runs as an unprivileged user with a sandbox Chrome disables when it
+# detects a container. `CHROME_PATH` above tells the sign-in flow where it is.
 USER node
 WORKDIR /data
 

@@ -19,7 +19,7 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/claude/output-formatter.test.ts` | 20 | Message splitting, code block fence handling, result embeds, Stop/completion buttons | No mocking — pure logic + discord.js constructors work natively |
 | `src/security/guard.test.ts` | 12 | Sliding-window rate limiting and BASE_PROJECT_DIR path validation | Mock `getConfig()`, `vi.spyOn(fs)`, `vi.useFakeTimers()` |
 | `src/security/access-policy.test.ts` | 10 | Exact profile selection, denylist composition, GitHub repository protection, audit records | Pure policy evaluation + stderr spy |
-| `src/utils/config.test.ts` | 26 | Environment/YAML schema (including the optional `claude` provider section and retired `CLAUDE_MODEL`), trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
+| `src/utils/config.test.ts` | 28 | Environment/YAML schema (including the optional `claude` provider section, the Gemini Business sign-in variables, and retired `CLAUDE_MODEL`), trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
 | `src/db/database.test.ts` | 4 | Conversation-chain and message-mapping CRUD | In-memory SQLite via `better-sqlite3` constructor mock |
 | `src/db/channel-providers.test.ts` | 4 | Per-channel `/model` provider override file, entry replacement, corrupt-file recovery | Real temporary directories |
 | `src/scheduler/parser.test.ts` | 8 | Markdown/YAML parsing, cron, channels, time zones, IDs, serialization | Pure parsing with Croner validation |
@@ -29,7 +29,9 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/claude/providers.test.ts` | 7 | Provider resolution order and subprocess environment mapping, including OAuth-preserving blanks | Pure functions, no child process |
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
 | `src/email/tools.test.ts` | 7 | Admin-only exposure, EWS NTLM setup, read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
-| **Total** | **117** | | |
+| `src/gemini-business/*.test.ts` | 123 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps, mocked filesystem/browser discovery, and a real server on an ephemeral port |
+| `src/utils/proxy-integration.test.ts` | 4 | Startup wiring: pool left disabled without `proxy.yaml`, `/model` provider injection with it, and fatal errors for an invalid or unreadable file | Mocked trusted config directory, fresh module per scenario |
+| **Total** | **246** | | |
 
 ## What Each Test Covers
 
@@ -53,10 +55,11 @@ npx tsc --noEmit      # Type check only (no build output)
 - Admin bypass, unscoped and incidental searches, route scoping, and unknown-schema fail-open behavior
 - Minimal JSON audit records without unrelated tool input
 
-### config (26 tests)
+### config (28 tests)
 
 - Required environment values and defaults
 - Optional all-or-none Exchange variables, HTTPS enforcement, and email validation
+- Optional all-or-none Gemini Business sign-in credentials, base32 TOTP validation, and trimming of `GEMINI_SSO_TEAM_ID`/`PROVIDER`/`CHROME_PATH`
 - Strict version 1 YAML, required arrays, unknown/duplicate keys, quoted Discord IDs, and unique values
 - Repository and Claude tool-rule syntax
 - Default, empty, trimmed, and normalized `claude` provider sections plus rejected provider identifiers, base URLs, effort levels, duplicates, and defaults
@@ -88,6 +91,22 @@ npx tsc --noEmit      # Type check only (no build output)
 - NTLM authentication and exact-mailbox routing configuration
 - Newest-first Inbox listing and plain-text message binding without attachment downloads
 - Untrusted mailbox-content labels and secret redaction in tool errors
+
+## Embedded Gemini Business pool (123 tests)
+
+- Anthropic Messages API ↔ OpenAI chat-completion translation, including system prompts, images, tool use, and tool results
+- Anthropic SSE block sequences for text-then-tool turns and text-only turns
+- Prompt-space tool-call emulation: fenced and `<tool_call>` blocks, split chunks, forced/parallel choices, history replay, and refusal to call undeclared tools
+- Incremental JSON-array reading at arbitrary chunk sizes, plus upstream failures embedded in HTTP 200 bodies
+- Streaming chunks split mid tool call, SSE-framed deployments, and thought-reply filtering
+- Account rotation, disabled-account skipping, the error threshold, and per-account session caching
+- HTTP routes: auth by `x-api-key`/`Bearer`, Anthropic streaming frames, `[DONE]` termination, 400/401/500 dialects, and unknown paths
+- `proxy.yaml` schema: documented defaults, unquoted `csesidx` normalization, mandatory API key, duplicate names, and a fully disabled pool
+- Chrome discovery order (explicit path, `CHROME_PATH`, detected installation) and the descriptive failure
+- Container detection driving the `--no-sandbox`/`--disable-dev-shm-usage` flags, and that a desktop host keeps its sandbox
+- Startup sign-in policy: healthy cookies never open a browser, a rejected credential signs in and persists, `sso.enabled: false` and missing credentials never open one, a first account is captured when none exists, and a failed sign-in is reported without taking the bot down
+- Captured-account persistence: replacement by name, structural rejection of a malformed capture, and corrupt-file recovery
+- `proxy.yaml` over a captured account of the same name, and secret redaction in sign-in failures
 
 ## Adding New Tests
 

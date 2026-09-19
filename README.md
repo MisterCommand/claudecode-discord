@@ -67,6 +67,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 - 📊 **Claude Code usage dashboard** in Discord — Session (5hr), Weekly (7day), and Weekly Sonnet usage with progress bars
 - 🗓️ Markdown-based recurring schedules with natural-language Discord management
 - 📬 Optional Admin-only, read-only Inbox access for on-premises Microsoft Exchange
+- 🔄 Optional embedded **Gemini Business** pool, running alongside the bot and offered as a `/model` provider
 
 ## Tech Stack
 
@@ -79,6 +80,8 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 | Validation | zod v4 |
 | Scheduling | Croner + YAML front matter |
 | Email | ews-javascript-api + @ewsjs/xhr (NTLM) |
+| Gemini Business | Embedded gemini-business-api pool (vendored) |
+| Browser sign-in | puppeteer-core + chrome-launcher + bundled Chromium (headless) |
 | Build | tsup (ESM) |
 | Test | vitest |
 
@@ -101,6 +104,10 @@ and file must be read-only to the bot process. Invalid configuration prevents
 startup. On POSIX native deployments, the bot must not own these objects; a
 read-only Docker mount also satisfies the check. See [SETUP.md](SETUP.md) for
 native and Docker permission examples.
+
+To also run the embedded Gemini Business pool, copy
+[proxy.example.yaml](proxy.example.yaml) to `proxy.yaml` in the same directory.
+It is optional, and it is held to the same ownership and read-only rules.
 
 The optional `install.sh` and `install.bat` scripts perform the same CLI setup
 and build steps. They do not install or launch a desktop application.
@@ -159,6 +166,12 @@ Python with pip, C++ build tools, search/data/archive utilities, SQLite, rsync,
 and common process and network diagnostics. Install any additional
 project-specific tools in a derived image if needed.
 
+The image also includes Chromium, so the embedded Gemini Business sign-in runs
+headlessly inside the container with no extra setup: `CHROME_PATH` is preset to
+`/usr/bin/chromium`, and the sign-in detects the container and applies the Chrome
+flags it needs. Add `--shm-size=1g` if you keep several accounts resident and see
+Chrome crashes under memory pressure.
+
 <details>
 <summary><strong>Project Structure</strong></summary>
 
@@ -174,11 +187,13 @@ claudecode-discord/
 │   ├── claude/
 │   │   ├── session-manager.ts  # Session lifecycle
 │   │   └── output-formatter.ts # Discord output formatting
+│   ├── gemini-business/        # Embedded Gemini Business pool (vendored)
 │   ├── db/                     # SQLite (better-sqlite3)
 │   ├── security/               # Rate limiting and path validation
 │   ├── scheduler/              # Markdown schedules, Croner registry, Agent tools
 │   └── utils/                  # Config (zod)
 ├── SETUP.md                    # Cross-platform CLI setup guide
+├── proxy.example.yaml          # Optional embedded Gemini Business pool config
 ├── Dockerfile                  # Production container image
 ├── compose.example.yml         # Docker Compose example
 ├── docs/                       # Setup and testing documentation
@@ -219,6 +234,10 @@ in the gitignored `channel-providers.json` file next to `data.db`
 (`/data/channel-providers.json` in Docker) and take effect from the next message.
 Nothing is stored in the trusted `config.yaml`, so switching providers never
 requires editing that file. In-flight turns keep the provider they started with.
+
+When `proxy.yaml` is present, the list also contains the embedded Gemini
+Business pool as `gemini-business`; see
+[Optional embedded Gemini Business pool](#optional-embedded-gemini-business-pool).
 
 ### Recurring schedules
 
@@ -404,7 +423,7 @@ value overrides that environment for every turn of that provider.
 - Treat every channel user as authorized for all non-denied tools available to that channel's profile
 - Keep `BOT_CONFIG_DIR` outside the agent workspace and read-only to the bot process
 - Treat access to schedule creation and the local `schedules/` directory as authority to schedule work in any visible destination channel
-- Protect `.env` as a secret because it may contain `EWS_PASSWORD`, and protect `config.yaml` the same way because it holds every configured provider `api_key`; mailbox content is untrusted data and never grants authority for other actions
+- Protect `.env` as a secret because it may contain `EWS_PASSWORD` and the Gemini Business sign-in credentials; protect `config.yaml` and `proxy.yaml` because they hold every configured provider `api_key`; and protect `gemini-accounts.json` because it holds the captured Gemini Business account cookies. Mailbox content is untrusted data and never grants authority for other actions
 
 ## Optional Exchange email retrieval
 
@@ -478,6 +497,108 @@ The generated `OTEL_*` authentication header reaches Claude Code's telemetry
 exporter, and Claude Code withholds `OTEL_*` variables from Bash commands,
 hooks, MCP servers, and language servers launched by the agent. Export failures
 do not stop a Turn; diagnostics remain visible in the bot's foreground logs.
+
+## Optional embedded Gemini Business pool
+
+The bot can run a [Gemini Business](https://vertexaisearch.cloud.google) account
+pool inside its own process and expose it as a `/model` provider. It is the
+vendored `gemini-business-api` service, so it speaks the same Anthropic Messages
+API the Claude Code subprocess already uses, and it starts before Discord
+connects and stops with the bot.
+
+Create `proxy.yaml` in `BOT_CONFIG_DIR` from
+[proxy.example.yaml](proxy.example.yaml):
+
+```yaml
+server:
+  port: 8000
+  api_keys:
+    - sk-local-1        # at least one; the first becomes the provider's api_key
+  default_model: gemini-3.8-flash
+
+# Automated sign-in at startup. Omit for the defaults below.
+sso:
+  enabled: true
+  # provider: locations/global/workforcePools/<pool>/providers/<provider>
+  # name: default        # account name captured when none exists yet
+  # team_id: <uuid>      # workspace id for a brand-new account
+```
+
+`server` is required; `sso` and `pool` have usable defaults. Accounts are **not**
+listed here — this file is read-only, so the bot captures them at startup and
+keeps them in `gemini-accounts.json` next to `data.db`. The file is trusted
+policy exactly like `config.yaml`: read once at startup, never hot reloaded, and
+rejected unless it is unlinked, outside `BASE_PROJECT_DIR`, and owned by another
+account without write bits. Apply the same `chown`/`chmod` steps shown in
+[SETUP.md](SETUP.md), and protect `gemini-accounts.json` like `.env` — it holds
+the account cookies, while the sign-in credentials stay in the environment.
+
+When `proxy.yaml` exists, the bot prepends a provider to the `/model` list:
+
+| Field | Value |
+|-------|-------|
+| `value` | `gemini-business` |
+| `label` | Gemini Business (embedded proxy) |
+| `api_key` | The first `server.api_keys` entry |
+| `base_url` | `http://<server.host>:<server.port>` (loopback when the host is a wildcard) |
+| `default_model` | `server.default_model` |
+
+The provider is prepended so it also becomes the default for channels without an
+override. To change that, set `claude.default_provider` in `config.yaml`, or
+declare your own provider with `value: gemini-business`, which replaces the
+injected entry entirely. `/model` then switches a channel between the pool and
+any other provider, exactly as with a hand-written entry.
+
+### Signing in
+
+The bot signs in for itself at startup. For every account it probes the stored
+cookies against Gemini Business first, and opens a headless Chrome window **only
+when they no longer work** — so a healthy bot starts with no browser and no
+network sign-in, and an unattended bot repairs itself when its cookies expire.
+A newly captured account is stored in `gemini-accounts.json` next to `data.db`
+(mode `0600`) and reused on every later start.
+
+Enable it by setting the credentials in the environment:
+
+```env
+GEMINI_SSO_EMAIL=you@example.edu
+GEMINI_SSO_PASSWORD=replace-with-the-account-password
+# Base32 secret for an authenticator-app MFA prompt. Other MFA and consent
+# prompts need a human: run the login command below with --no-sso.
+GEMINI_SSO_TOTP_SECRET=
+# Optional defaults for a brand-new account.
+GEMINI_SSO_TEAM_ID=
+GEMINI_SSO_PROVIDER=
+```
+
+With those set and no account configured anywhere, the bot captures its first
+account at startup using `sso.name` (default `default`). Set `sso.enabled: false`
+to keep accounts from being refreshed automatically; the bot then serves
+whatever credentials it already has and logs the reason when they are rejected.
+Credentials are removed from the Claude subprocess environment, alongside
+`EWS_PASSWORD`.
+
+The login command stays available for a deliberate capture — a first account on
+a machine where you would rather watch, or a step the automation cannot clear:
+
+```bash
+npm run gemini -- login [account-name]
+```
+
+It writes the account to the runtime store the bot reads, so no file editing is
+needed. `--no-sso` opens a **visible** window so you can sign in by hand. If
+stored credentials still refresh, the command stops without opening a browser.
+
+Two more commands help with operations:
+
+```bash
+npm run gemini -- validate   # check proxy.yaml without starting the bot
+npm run gemini -- check      # refresh each account's credentials and report status
+```
+
+The pool requires `BOT_CONFIG_DIR` to be set, because that is where it looks for
+`proxy.yaml`. Without `proxy.yaml` nothing changes: no pool is started and the
+provider list is exactly `claude.providers` from `config.yaml`.
 
 ## Running the Bot
 

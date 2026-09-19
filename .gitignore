@@ -14,3 +14,4 @@ schedules/
 CLAUDE.md
 .bot.lock
 *.lock
+gemini-accounts.json

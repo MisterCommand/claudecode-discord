@@ -2,6 +2,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseDocument } from "yaml";
 import { z } from "zod";
+import {
+  GEMINI_BUSINESS_PROVIDER_VALUE, geminiBusinessProvider,
+  proxyConfigExists, proxyConfigPath, readProxyConfig,
+  type GeminiBusinessConfig, type ProviderChoice,
+} from "../gemini-business/config.js";
 
 const discordIdSchema = z.custom<string>(
   (value) => typeof value === "string" && /^\d{17,20}$/.test(value),
@@ -44,6 +49,14 @@ const optionalBaseUrl = z.preprocess(
       }
     }, "must be a valid http:// or https:// URL")
     .transform((value) => value.replace(/\/+$/, ""))
+    .optional(),
+);
+
+/** Base32 as accepted by the RFC 6238 implementation in the sign-in flow. */
+const optionalTotpSecret = z.preprocess(
+  (value) => typeof value === "string" ? value.trim() || undefined : value,
+  z.string()
+    .refine((value) => /^[A-Za-z2-7\s=-]+$/.test(value), "must be a base32 authenticator secret")
     .optional(),
 );
 
@@ -146,6 +159,12 @@ const envSchema = z.object({
   EWS_URL: optionalTrimmedString,
   EWS_EMAIL: optionalEmail,
   EWS_PASSWORD: optionalPassword,
+  GEMINI_SSO_EMAIL: optionalEmail,
+  GEMINI_SSO_PASSWORD: optionalPassword,
+  GEMINI_SSO_TOTP_SECRET: optionalTotpSecret,
+  GEMINI_SSO_TEAM_ID: optionalTrimmedString,
+  GEMINI_SSO_PROVIDER: optionalTrimmedString,
+  CHROME_PATH: optionalTrimmedString,
   HONEYCOMB_API_KEY: z
     .string()
     .optional()
@@ -182,11 +201,31 @@ const envSchema = z.object({
       });
     }
   }
+
+  // Headless sign-in drives the identity-provider form itself, so the email and
+  // password are required together and neither is useful alone.
+  const ssoKeys = ["GEMINI_SSO_EMAIL", "GEMINI_SSO_PASSWORD"] as const;
+  const configuredSso = ssoKeys.filter((key) => config[key] !== undefined);
+  if (configuredSso.length > 0 && configuredSso.length < ssoKeys.length) {
+    for (const key of ssoKeys) {
+      if (config[key] === undefined) context.addIssue({
+        code: "custom",
+        message: `${key} is required when the Gemini Business sign-in credentials are configured`,
+        path: [key],
+      });
+    }
+  }
 });
 
 export type BotFileConfig = z.infer<typeof botConfigSchema>;
 export type EnvironmentConfig = z.infer<typeof envSchema>;
-export type Config = EnvironmentConfig & BotFileConfig & { BOT_CONFIG_FILE: string };
+export type Config = EnvironmentConfig & BotFileConfig & {
+  BOT_CONFIG_FILE: string;
+  /** Read-only `proxy.yaml` beside `config.yaml`; absent when the pool is not configured. */
+  PROXY_CONFIG_FILE: string;
+  /** Embedded Gemini Business pool settings, present only when `proxy.yaml` exists. */
+  geminiBusiness?: GeminiBusinessConfig;
+};
 
 export class ConfigurationError extends Error {
   constructor(message: string) {
@@ -287,6 +326,7 @@ export function assertTrustedConfigLocation(
   configFile: string,
   baseProjectDirectory: string,
   platform: NodeJS.Platform = process.platform,
+  label = "Bot configuration file",
 ): void {
   const pathApi = platform === "win32" ? path.win32 : path.posix;
   if (!pathApi.isAbsolute(configDirectory)) throw new ConfigurationError("BOT_CONFIG_DIR must be an absolute path");
@@ -306,12 +346,12 @@ export function assertTrustedConfigLocation(
 
   if (directoryStats.isSymbolicLink()) throw new ConfigurationError(`BOT_CONFIG_DIR must not be a symlink or junction: ${configDirectory}`);
   if (!directoryStats.isDirectory()) throw new ConfigurationError(`BOT_CONFIG_DIR is not a directory: ${configDirectory}`);
-  if (fileStats.isSymbolicLink()) throw new ConfigurationError(`Bot configuration file must not be a symlink or junction: ${configFile}`);
-  if (!fileStats.isFile()) throw new ConfigurationError(`Bot configuration is not a regular file: ${configFile}`);
+  if (fileStats.isSymbolicLink()) throw new ConfigurationError(`${label} must not be a symlink or junction: ${configFile}`);
+  if (!fileStats.isFile()) throw new ConfigurationError(`${label} is not a regular file: ${configFile}`);
 
   const realDirectory = fs.realpathSync(configDirectory);
   const realFile = fs.realpathSync(configFile);
-  if (!isWithin(realDirectory, realFile, platform)) throw new ConfigurationError(`Bot configuration file escaped BOT_CONFIG_DIR: ${configFile}`);
+  if (!isWithin(realDirectory, realFile, platform)) throw new ConfigurationError(`${label} escaped BOT_CONFIG_DIR: ${configFile}`);
   if (fs.existsSync(baseProjectDirectory)) {
     const realBase = fs.realpathSync(baseProjectDirectory);
     if (isWithin(realBase, realDirectory, platform)) {
@@ -320,7 +360,20 @@ export function assertTrustedConfigLocation(
   }
 
   assertReadOnly(configDirectory, directoryStats, "BOT_CONFIG_DIR", platform);
-  assertReadOnly(configFile, fileStats, "Bot configuration file", platform);
+  assertReadOnly(configFile, fileStats, label, platform);
+}
+
+/**
+ * Add the embedded Gemini Business pool to the `/model` list.
+ *
+ * The provider is prepended so it also becomes the default for channels without
+ * an override — `proxy.yaml` only exists because an operator asked for it — and
+ * an entry with the same `value` in `config.yaml` replaces it entirely.
+ */
+export function withGeminiBusinessProvider(claude: ClaudeConfig, pool: GeminiBusinessConfig): ClaudeConfig {
+  if (claude.providers.some((provider) => provider.value === GEMINI_BUSINESS_PROVIDER_VALUE)) return claude;
+  const injected: ProviderChoice = geminiBusinessProvider(pool);
+  return { ...claude, providers: [injected, ...claude.providers] };
 }
 
 let cachedConfig: Config | null = null;
@@ -359,11 +412,31 @@ export function loadConfig(): Config {
     throw new ConfigurationError(`Cannot read required bot configuration: ${detail}`);
   }
 
+  const botConfig = parseBotConfig(source);
+  const proxyFile = proxyConfigPath(configDirectory);
+
+  // `proxy.yaml` is optional, but when it exists it is trusted policy exactly
+  // like `config.yaml`: same ownership and read-only rules, no hot reload.
+  let geminiBusiness: GeminiBusinessConfig | undefined;
+  if (proxyConfigExists(configDirectory)) {
+    assertTrustedConfigLocation(
+      configDirectory, proxyFile, environment.BASE_PROJECT_DIR, process.platform, "Proxy configuration file",
+    );
+    try {
+      geminiBusiness = readProxyConfig(configDirectory);
+    } catch (error) {
+      throw new ConfigurationError(error instanceof Error ? error.message : String(error));
+    }
+  }
+
   cachedConfig = {
     ...environment,
-    ...parseBotConfig(source),
+    ...botConfig,
+    claude: geminiBusiness ? withGeminiBusinessProvider(botConfig.claude, geminiBusiness) : botConfig.claude,
     BOT_CONFIG_DIR: configDirectory,
     BOT_CONFIG_FILE: configFile,
+    PROXY_CONFIG_FILE: proxyFile,
+    geminiBusiness,
   };
   return cachedConfig;
 }

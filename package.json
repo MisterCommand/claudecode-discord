@@ -6,8 +6,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsup src/index.ts --format esm --dts",
+    "build": "tsup src/index.ts src/gemini-cli.ts --format esm --dts",
     "start": "node dist/index.js",
+    "gemini": "tsx src/gemini-cli.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -21,10 +22,12 @@
     "@opentelemetry/sdk-metrics": "^2.11.0",
     "@opentelemetry/sdk-node": "^0.222.0",
     "better-sqlite3": "^11.0.0",
+    "chrome-launcher": "^1.2.1",
     "croner": "^10.0.1",
     "discord.js": "^14.19.3",
     "dotenv": "^17.2.4",
     "ews-javascript-api": "^0.15.3",
+    "puppeteer-core": "^24.40.0",
     "yaml": "^2.9.0",
     "zod": "^4.0.0"
   },

@@ -141,6 +141,44 @@ describe("environment configuration", () => {
       EWS_PASSWORD: "password",
     })).toThrow(/valid email address/);
   });
+
+  it("accepts the complete Gemini Business sign-in credentials", () => {
+    const parsed = parseEnvironment({
+      DISCORD_BOT_TOKEN: "token",
+      BASE_PROJECT_DIR: "/projects",
+      BOT_CONFIG_DIR: "/bot-config",
+      GEMINI_SSO_EMAIL: " student@example.edu ",
+      GEMINI_SSO_PASSWORD: " password with spaces ",
+      GEMINI_SSO_TOTP_SECRET: " 7bqg m6mz VHVH NSTT ",
+      GEMINI_SSO_TEAM_ID: " 45e94c0b-fb14-4185-8b4b-5a365c8bc047 ",
+      CHROME_PATH: " /usr/bin/chromium ",
+    });
+    expect(parsed).toMatchObject({
+      GEMINI_SSO_EMAIL: "student@example.edu",
+      GEMINI_SSO_PASSWORD: " password with spaces ",
+      GEMINI_SSO_TOTP_SECRET: "7bqg m6mz VHVH NSTT",
+      GEMINI_SSO_TEAM_ID: "45e94c0b-fb14-4185-8b4b-5a365c8bc047",
+      CHROME_PATH: "/usr/bin/chromium",
+    });
+  });
+
+  it("keeps the sign-in flow optional and rejects an incomplete or invalid one", () => {
+    const base = {
+      DISCORD_BOT_TOKEN: "token",
+      BASE_PROJECT_DIR: "/projects",
+      BOT_CONFIG_DIR: "/bot-config",
+    };
+    expect(parseEnvironment(base).GEMINI_SSO_EMAIL).toBeUndefined();
+    expect(parseEnvironment(base).GEMINI_SSO_PASSWORD).toBeUndefined();
+    expect(parseEnvironment({ ...base, GEMINI_SSO_TOTP_SECRET: "  " }).GEMINI_SSO_TOTP_SECRET).toBeUndefined();
+
+    expect(() => parseEnvironment({ ...base, GEMINI_SSO_EMAIL: "student@example.edu" }))
+      .toThrow(/GEMINI_SSO_PASSWORD is required/);
+    expect(() => parseEnvironment({ ...base, GEMINI_SSO_EMAIL: "not-an-email", GEMINI_SSO_PASSWORD: "password" }))
+      .toThrow(/valid email address/);
+    expect(() => parseEnvironment({ ...base, GEMINI_SSO_EMAIL: "a@b.com", GEMINI_SSO_PASSWORD: "p", GEMINI_SSO_TOTP_SECRET: "not*base32" }))
+      .toThrow(/base32 authenticator secret/);
+  });
 });
 
 describe("YAML bot configuration", () => {

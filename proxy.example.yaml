@@ -1,0 +1,50 @@
+# Gemini Business pool configuration.
+#
+# This file is optional. It exists only when you want the bot to run the
+# embedded Gemini Business pool (gemini-business-api) alongside itself and offer
+# it as a /model provider named "gemini-business".
+#
+# Place it beside config.yaml in BOT_CONFIG_DIR. It is trusted policy exactly
+# like config.yaml: the bot reads it once at startup, never hot reloads it, and
+# refuses to start unless it is owned by another account and free of write bits.
+# Make it read-only after editing:
+#
+#   sudo chmod 444 /absolute/path/to/claude-discord-config/proxy.yaml
+#
+# Accounts are NOT listed here. This file is read-only, so the bot cannot write
+# captures into it: accounts are captured by the sign-in below and kept in
+# gemini-accounts.json beside data.db.
+
+# Required. The pool authenticates its clients; an unauthenticated pool on a
+# shared host would let any local process drive the captured accounts.
+server:
+  host: 127.0.0.1
+  port: 8000
+  # At least one client key. The first one becomes the provider's api_key.
+  api_keys:
+    - sk-local-1
+  # Upstream Gemini model for requests that do not name a gemini-* model.
+  default_model: gemini-3.8-flash
+
+# Automated sign-in at startup. With GEMINI_SSO_EMAIL and GEMINI_SSO_PASSWORD
+# set, the bot probes each captured account and signs in again through headless
+# Chrome only when the stored cookies no longer work, so it repairs itself
+# unattended. The credentials are never written here; they stay in the
+# environment. Omit this whole section to keep the sign-in enabled with its
+# defaults.
+sso:
+  enabled: true
+  # Workforce Identity Federation provider; defaults to GEMINI_SSO_PROVIDER.
+  # provider: locations/global/workforcePools/<pool>/providers/<provider>
+  # Account name captured when none exists yet (default: default).
+  # name: default
+  # Workspace id for a brand-new account; defaults to GEMINI_SSO_TEAM_ID.
+  # team_id: 45e94c0b-fb14-4185-8b4b-5a365c8bc047
+
+# Optional. Every default below is valid, so the whole section can be omitted.
+pool:
+  # round-robin | least-used | random
+  rotation_strategy: round-robin
+  max_retries: 3
+  retry_delay: 1000
+  error_threshold: 3
