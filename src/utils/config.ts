@@ -3,9 +3,9 @@ import path from "node:path";
 import { parseDocument } from "yaml";
 import { z } from "zod";
 import {
-  GEMINI_BUSINESS_PROVIDER_VALUE, geminiBusinessProvider,
+  GEMINI_BUSINESS_PROVIDER_VALUE, geminiBusinessUrl,
   proxyConfigExists, proxyConfigPath, readProxyConfig,
-  type GeminiBusinessConfig, type ProviderChoice,
+  type GeminiBusinessConfig,
 } from "../gemini-business/config.js";
 
 const discordIdSchema = z.custom<string>(
@@ -363,16 +363,46 @@ export function assertTrustedConfigLocation(
 }
 
 /**
- * Add the embedded Gemini Business pool to the `/model` list.
+ * Report a pool that nothing can reach.
  *
- * The provider is prepended so it also becomes the default for channels without
- * an override — `proxy.yaml` only exists because an operator asked for it — and
- * an entry with the same `value` in `config.yaml` replaces it entirely.
+ * The `/model` list is exactly what `config.yaml` declares, so `proxy.yaml`
+ * never adds a provider on its own: the operator writes the entry, which keeps
+ * one readable source for what each channel can switch to. A pool no provider
+ * points at is then a configuration mistake, and saying so at startup beats a
+ * `/model` reply that silently falls back to the default provider.
  */
-export function withGeminiBusinessProvider(claude: ClaudeConfig, pool: GeminiBusinessConfig): ClaudeConfig {
-  if (claude.providers.some((provider) => provider.value === GEMINI_BUSINESS_PROVIDER_VALUE)) return claude;
-  const injected: ProviderChoice = geminiBusinessProvider(pool);
-  return { ...claude, providers: [injected, ...claude.providers] };
+function warnForUnwiredPool(claude: ClaudeConfig, pool: GeminiBusinessConfig): void {
+  const url = geminiBusinessUrl(pool);
+  const poolOrigin = providerOrigin(url);
+  const wired = claude.providers.some((provider) => (
+    provider.value === GEMINI_BUSINESS_PROVIDER_VALUE
+    || (provider.base_url !== undefined && providerOrigin(provider.base_url) === poolOrigin)
+  ));
+  if (wired) return;
+
+  console.warn(
+    `proxy.yaml runs the embedded Gemini Business pool at ${url}, but no claude.providers entry in `
+    + `config.yaml points at it, so /model cannot select it. Declare one there — value `
+    + `"${GEMINI_BUSINESS_PROVIDER_VALUE}", base_url ${url}, api_key from server.api_keys, and `
+    + `default_model ${pool.server.default_model} — then restart the bot.`,
+  );
+}
+
+/**
+ * A comparable origin for a provider URL. Loopback names are folded together
+ * because the pool publishes `127.0.0.1` for a wildcard bind while an operator
+ * may well write `localhost`, and both reach the same pool.
+ */
+function providerOrigin(baseUrl: string): string | undefined {
+  try {
+    const url = new URL(baseUrl);
+    const host = ["127.0.0.1", "localhost", "::1", "[::1]"].includes(url.hostname) ? "loopback" : url.hostname;
+    return `${url.protocol}//${host}:${url.port || (url.protocol === "https:" ? "443" : "80")}`;
+  } catch {
+    // Provider base URLs are validated at parse time, so this cannot normally
+    // happen; an unusable value simply never counts as wired.
+    return undefined;
+  }
 }
 
 let cachedConfig: Config | null = null;
@@ -428,10 +458,11 @@ export function loadConfig(): Config {
     }
   }
 
+  if (geminiBusiness) warnForUnwiredPool(botConfig.claude, geminiBusiness);
+
   cachedConfig = {
     ...environment,
     ...botConfig,
-    claude: geminiBusiness ? withGeminiBusinessProvider(botConfig.claude, geminiBusiness) : botConfig.claude,
     BOT_CONFIG_DIR: configDirectory,
     BOT_CONFIG_FILE: configFile,
     PROXY_CONFIG_FILE: proxyFile,

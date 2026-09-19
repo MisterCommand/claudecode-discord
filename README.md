@@ -67,7 +67,7 @@ Discord isn't just a chat app — it's a surprisingly perfect fit for controllin
 - 📊 **Claude Code usage dashboard** in Discord — Session (5hr), Weekly (7day), and Weekly Sonnet usage with progress bars
 - 🗓️ Markdown-based recurring schedules with natural-language Discord management
 - 📬 Optional Admin-only, read-only Inbox access for on-premises Microsoft Exchange
-- 🔄 Optional embedded **Gemini Business** pool, running alongside the bot and offered as a `/model` provider
+- 🔄 Optional embedded **Gemini Business** pool, running alongside the bot and selectable from `/model` once `config.yaml` declares it
 
 ## Tech Stack
 
@@ -107,7 +107,10 @@ native and Docker permission examples.
 
 To also run the embedded Gemini Business pool, copy
 [proxy.example.yaml](proxy.example.yaml) to `proxy.yaml` in the same directory.
-It is optional, and it is held to the same ownership and read-only rules.
+It is optional, and it is held to the same ownership and read-only rules. Running
+the pool does not add anything to `/model`: declare a provider in `config.yaml`
+that points at it, as shown in
+[Optional embedded Gemini Business pool](#optional-embedded-gemini-business-pool).
 
 The optional `install.sh` and `install.bat` scripts perform the same CLI setup
 and build steps. They do not install or launch a desktop application.
@@ -220,7 +223,7 @@ Replying to an otherwise unrelated human message while mentioning the bot starts
 | `/sessions` | Inspect or delete sessions in the current channel or thread |
 | `/usage` | Show Claude Code usage |
 | `/schedules` | Show recurring schedules for the current channel or thread |
-| `/model` | Show or switch the Claude provider (endpoint, key, and model) for the current channel or thread |
+| `/model` | Show or switch the provider (endpoint, key, and model) for the current channel or thread |
 
 ### Model selection
 
@@ -235,8 +238,8 @@ in the gitignored `channel-providers.json` file next to `data.db`
 Nothing is stored in the trusted `config.yaml`, so switching providers never
 requires editing that file. In-flight turns keep the provider they started with.
 
-When `proxy.yaml` is present, the list also contains the embedded Gemini
-Business pool as `gemini-business`; see
+The list is exactly what `claude.providers` declares, including a provider for
+the embedded Gemini Business pool when `proxy.yaml` runs one; see
 [Optional embedded Gemini Business pool](#optional-embedded-gemini-business-pool).
 
 ### Recurring schedules
@@ -501,7 +504,7 @@ do not stop a Turn; diagnostics remain visible in the bot's foreground logs.
 ## Optional embedded Gemini Business pool
 
 The bot can run a [Gemini Business](https://vertexaisearch.cloud.google) account
-pool inside its own process and expose it as a `/model` provider. It is the
+pool inside its own process and make it selectable from `/model`. It is the
 vendored `gemini-business-api` service, so it speaks the same Anthropic Messages
 API the Claude Code subprocess already uses, and it starts before Discord
 connects and stops with the bot.
@@ -516,7 +519,7 @@ workspace_id: 45e94c0b-fb14-4185-8b4b-5a365c8bc047
 server:
   port: 8000
   api_keys:
-    - sk-local-1        # at least one; the first becomes the provider's api_key
+    - sk-local-1        # at least one; the pool authenticates clients with these
   default_model: gemini-3.8-flash
 
 # Automated sign-in at startup. Omit for the defaults below.
@@ -535,21 +538,34 @@ account without write bits. Apply the same `chown`/`chmod` steps shown in
 [SETUP.md](SETUP.md), and protect `gemini-accounts.json` like `.env` — it holds
 the account cookies, while the sign-in credentials stay in the environment.
 
-When `proxy.yaml` exists, the bot prepends a provider to the `/model` list:
+The pool is reached through a normal provider entry, so `/model` changes with
+`config.yaml` alone — `proxy.yaml` starts the pool but never adds a provider.
+Declare the entry in `claude.providers` to select it:
 
-| Field | Value |
-|-------|-------|
-| `value` | `gemini-business` |
-| `label` | Gemini Business (embedded proxy) |
-| `api_key` | The first `server.api_keys` entry |
-| `base_url` | `http://<server.host>:<server.port>` (loopback when the host is a wildcard) |
-| `default_model` | `server.default_model` |
+```yaml
+claude:
+  providers:
+    - value: subscription
+      label: Claude subscription
+      default_model: sonnet
+    # The embedded pool. api_key must be one of server.api_keys in proxy.yaml.
+    - value: gemini-business
+      label: Gemini Business
+      api_key: sk-local-1
+      base_url: http://127.0.0.1:8000
+      default_model: gemini-3.8-flash
+```
 
-The provider is prepended so it also becomes the default for channels without an
-override. To change that, set `claude.default_provider` in `config.yaml`, or
-declare your own provider with `value: gemini-business`, which replaces the
-injected entry entirely. `/model` then switches a channel between the pool and
-any other provider, exactly as with a hand-written entry.
+Use the pool's own values: `base_url` is `http://<server.host>:<server.port>`
+(loopback when the host is a wildcard), `api_key` is one of
+`server.api_keys`, and `default_model` is `server.default_model`. Set
+`claude.default_provider: gemini-business` to make it the default for channels
+without an override. The bot warns at startup when a running pool has no
+provider pointing at it, so a missing entry is reported instead of silently
+dropping the pool from `/model`.
+
+The same entry also works for a pool running elsewhere: point `base_url` at it
+and `/model` reaches it exactly as it does the embedded one.
 
 ### Signing in
 

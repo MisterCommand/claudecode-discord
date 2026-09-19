@@ -256,9 +256,9 @@ if the directory or file is missing, writable, linked, or invalid.
 ### Optional: embedded Gemini Business pool
 
 Copy `proxy.example.yaml` to `proxy.yaml` in the same directory to run a Gemini
-Business account pool inside the bot process and offer it as the
-`gemini-business` provider in `/model`. `workspace_id` (the deployment's Gemini
-Business workspace) and `server` (with at least one client API key) are required;
+Business account pool inside the bot process and make it selectable from
+`/model`. `workspace_id` (the deployment's Gemini Business workspace) and
+`server` (with at least one client API key) are required;
 `sso` and `pool` have usable defaults. Accounts are not listed
 in this file — the bot captures them at startup and keeps them in
 `gemini-accounts.json` beside `data.db`. `proxy.yaml` is held to the same rules as
@@ -267,6 +267,23 @@ in this file — the bot captures them at startup and keeps them in
 ```bash
 sudo chmod 444 /absolute/path/to/claude-discord-config/proxy.yaml
 ```
+
+`proxy.yaml` starts the pool but never adds a `/model` entry: declare a provider
+for it in `config.yaml`, or `/model` cannot select it and the bot logs a warning
+at startup. Use the pool's own values:
+
+```yaml
+claude:
+  providers:
+    - value: gemini-business
+      label: Gemini Business
+      api_key: sk-local-1              # one of server.api_keys in proxy.yaml
+      base_url: http://127.0.0.1:8000   # server.host and server.port
+      default_model: gemini-3.8-flash   # server.default_model
+```
+
+Set `claude.default_provider: gemini-business` to make it the default for
+channels without a `/model` override.
 
 Replace `config.yaml` with `proxy.yaml` in the `chmod 444`/`icacls` commands
 above to cover it.
@@ -432,7 +449,8 @@ For Docker, authenticate inside the persistent `/home/node` volume.
 ### The gemini-business provider is missing from /model
 
 - Confirm `proxy.yaml` exists in `BOT_CONFIG_DIR` and passes `npm run gemini -- validate`, then restart the bot; configuration is not hot-reloaded.
-- Confirm the bot started the pool: the log line `gemini_business_pool_started` names the URL and enabled accounts.
+- Confirm `config.yaml` declares the provider: `proxy.yaml` starts the pool but never adds a `/model` entry. Use the example in section 5, and restart after editing; configuration is not hot-reloaded.
+- Confirm the bot started the pool: the log line `gemini_business_pool_started` names the URL and enabled accounts. A running pool with no provider pointing at it logs a warning naming the URL to use as `base_url`.
 - Confirm `proxy.yaml` is read-only and owned by an account other than the bot process, like `config.yaml`.
 
 ### The Gemini Business sign-in fails

@@ -42,3 +42,13 @@ claude:
       # Blank inherits the bot process environment.
       subagent_model: ""
       effort_level: high
+
+    # The embedded Gemini Business pool is reached through an entry like this
+    # one. Keep proxy.yaml's server host/port, one of its server.api_keys, and
+    # its default_model in the values below; without an entry here, the running
+    # pool is not selectable from /model.
+    # - value: gemini-business
+    #   label: Gemini Business
+    #   api_key: sk-local-1
+    #   base_url: http://127.0.0.1:8000
+    #   default_model: gemini-3.8-flash

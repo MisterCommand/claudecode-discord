@@ -29,9 +29,9 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/claude/providers.test.ts` | 7 | Provider resolution order and subprocess environment mapping, including OAuth-preserving blanks | Pure functions, no child process |
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
 | `src/email/tools.test.ts` | 7 | Admin-only exposure, EWS NTLM setup, read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
-| `src/gemini-business/*.test.ts` | 123 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps, mocked filesystem/browser discovery, and a real server on an ephemeral port |
-| `src/utils/proxy-integration.test.ts` | 4 | Startup wiring: pool left disabled without `proxy.yaml`, `/model` provider injection with it, and fatal errors for an invalid or unreadable file | Mocked trusted config directory, fresh module per scenario |
-| **Total** | **246** | | |
+| `src/gemini-business/*.test.ts` | 124 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps, mocked filesystem/browser discovery, and a real server on an ephemeral port |
+| `src/utils/proxy-integration.test.ts` | 9 | Startup wiring: pool left disabled without `proxy.yaml`, the `/model` list left to `config.yaml` with it, the unwired-pool warning and its URL matching, and fatal errors for an invalid or unreadable file | Mocked trusted config directory, fresh module per scenario |
+| **Total** | **252** | | |
 
 ## What Each Test Covers
 
@@ -92,7 +92,7 @@ npx tsc --noEmit      # Type check only (no build output)
 - Newest-first Inbox listing and plain-text message binding without attachment downloads
 - Untrusted mailbox-content labels and secret redaction in tool errors
 
-## Embedded Gemini Business pool (123 tests)
+## Embedded Gemini Business pool (124 tests)
 
 - Anthropic Messages API ↔ OpenAI chat-completion translation, including system prompts, images, tool use, and tool results
 - Anthropic SSE block sequences for text-then-tool turns and text-only turns
@@ -108,6 +108,14 @@ npx tsc --noEmit      # Type check only (no build output)
 - Captured-account persistence: replacement by name, structural rejection of a malformed capture, and corrupt-file recovery
 - Workspace binding: a capture from another workspace is never probed or served, is re-captured against the configured workspace, and a same-workspace stale account stays in rotation
 - Secret redaction in sign-in failures
+
+## Embedded pool startup wiring (9 tests)
+
+- The pool stays disabled and the `/model` list stays at the `config.yaml` default without `proxy.yaml`
+- `proxy.yaml` starts the pool and exposes it on `config.geminiBusiness` while leaving the `/model` list untouched
+- A pool provider declared in `config.yaml` reaches `config.claude` exactly as written
+- The unwired-pool warning names the pool URL and the provider value, stays silent once a provider reaches that URL, treats a loopback spelling as reaching it, and warns about another port
+- Invalid and unreadable `proxy.yaml` remain fatal instead of silently skipping the pool
 
 ## Adding New Tests
 

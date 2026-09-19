@@ -13,7 +13,7 @@ import { z } from "zod";
 
 export const PROXY_CONFIG_FILE_NAME = "proxy.yaml";
 
-/** Provider value the bot injects for the embedded pool, matching the provider identifier rules. */
+/** Suggested `claude.providers` value for the embedded pool, matching the provider identifier rules. */
 export const GEMINI_BUSINESS_PROVIDER_VALUE = "gemini-business";
 
 /** Upstream model used for `/v1/messages` requests that do not name a `gemini-*` id. */
@@ -108,18 +108,6 @@ const proxyConfigSchema = z.strictObject({
 
 export type GeminiBusinessConfig = z.infer<typeof proxyConfigSchema>;
 
-/**
- * Shape of one `/model` choice, duplicated structurally so this module never
- * imports the bot's configuration module back.
- */
-export interface ProviderChoice {
-  value: string;
-  label: string;
-  api_key?: string;
-  base_url?: string;
-  default_model?: string;
-}
-
 /** Loopback address for a client of a pool bound to every interface. */
 function clientHost(host: string): string {
   if (host === "0.0.0.0" || host === "::") return "127.0.0.1";
@@ -129,20 +117,6 @@ function clientHost(host: string): string {
 
 export function geminiBusinessUrl(config: GeminiBusinessConfig): string {
   return `http://${clientHost(config.server.host)}:${config.server.port}`;
-}
-
-/**
- * The `/model` choice for the embedded pool. The operator can override it by
- * declaring the same provider value in `config.yaml`.
- */
-export function geminiBusinessProvider(config: GeminiBusinessConfig): ProviderChoice {
-  return {
-    value: GEMINI_BUSINESS_PROVIDER_VALUE,
-    label: "Gemini Business (embedded proxy)",
-    api_key: config.server.api_keys[0],
-    base_url: geminiBusinessUrl(config),
-    default_model: config.server.default_model,
-  };
 }
 
 function formatIssues(error: z.ZodError): string[] {

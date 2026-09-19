@@ -95,21 +95,98 @@ describe("embedded Gemini Business pool startup", () => {
     expect(config.claude.providers.map((provider) => provider.value)).toEqual(["default"]);
   });
 
-  it("exposes the pool as a working /model provider when proxy.yaml is present", async () => {
+  it("starts the pool without touching the /model list", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     mockTrustedDirectory({ "config.yaml": validYaml, "proxy.yaml": proxyYaml });
 
     const config = await loadConfig();
     expect(config.geminiBusiness?.server.port).toBe(18123);
     expect(config.geminiBusiness?.workspace_id).toBe("45e94c0b-fb14-4185-8b4b-5a365c8bc047");
-    expect(config.claude.providers[0]).toEqual({
-      value: "gemini-business",
-      label: "Gemini Business (embedded proxy)",
-      api_key: "sk-local-1",
-      base_url: "http://127.0.0.1:18123",
-      default_model: "gemini-3.8-flash",
+    // proxy.yaml starts the pool; only config.yaml decides what /model offers.
+    expect(config.claude.providers.map((provider) => provider.value)).toEqual(["default"]);
+    expect(warn).toHaveBeenCalled();
+  });
+
+  it("keeps a declared pool provider exactly as config.yaml wrote it", async () => {
+    mockTrustedDirectory({
+      "config.yaml": `${validYaml}claude:
+  providers:
+    - value: subscription
+      label: Claude subscription
+    - value: gemini-business
+      label: Pool
+      api_key: sk-local-1
+      base_url: http://127.0.0.1:18123
+      default_model: gemini-3.8-flash
+`,
+      "proxy.yaml": proxyYaml,
     });
-    // The injected provider has no default_provider set, so it is the default.
+
+    const config = await loadConfig();
+    expect(config.claude.providers.map((provider) => provider.value)).toEqual(["subscription", "gemini-business"]);
     expect(config.claude.default_provider).toBeUndefined();
+  });
+
+  it("warns when the running pool has no provider pointing at it", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockTrustedDirectory({ "config.yaml": validYaml, "proxy.yaml": proxyYaml });
+
+    await loadConfig();
+
+    const message = warn.mock.calls.map((call) => String(call[0])).join("\n");
+    expect(message).toContain("http://127.0.0.1:18123");
+    expect(message).toContain("gemini-business");
+  });
+
+  it("stays quiet when a provider reaches the pool", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockTrustedDirectory({
+      "config.yaml": `${validYaml}claude:
+  providers:
+    - value: gemini-business
+      label: Pool
+      base_url: http://127.0.0.1:18123
+`,
+      "proxy.yaml": proxyYaml,
+    });
+
+    await loadConfig();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("treats a loopback spelling as reaching the pool", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockTrustedDirectory({
+      "config.yaml": `${validYaml}claude:
+  providers:
+    - value: pool
+      label: Pool
+      base_url: http://localhost:18123
+`,
+      "proxy.yaml": proxyYaml,
+    });
+
+    await loadConfig();
+
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("warns about a pool served on another port", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    mockTrustedDirectory({
+      "config.yaml": `${validYaml}claude:
+  providers:
+    - value: pool
+      label: Pool
+      base_url: http://127.0.0.1:9999
+`,
+      "proxy.yaml": proxyYaml,
+    });
+
+    await loadConfig();
+
+    expect(warn).toHaveBeenCalled();
   });
 
   it("refuses to start with a clear message when proxy.yaml is invalid", async () => {

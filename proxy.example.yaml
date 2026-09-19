@@ -1,8 +1,20 @@
 # Gemini Business pool configuration.
 #
 # This file is optional. It exists only when you want the bot to run the
-# embedded Gemini Business pool (gemini-business-api) alongside itself and offer
-# it as a /model provider named "gemini-business".
+# embedded Gemini Business pool (gemini-business-api) alongside itself.
+#
+# This file starts the pool; it does NOT add anything to /model. To let a
+# channel select it, declare a provider for it in config.yaml:
+#
+#   claude:
+#     providers:
+#       - value: gemini-business
+#         label: Gemini Business
+#         api_key: sk-local-1              # one of server.api_keys below
+#         base_url: http://127.0.0.1:8000   # this file's server host and port
+#         default_model: gemini-3.8-flash   # this file's server.default_model
+#
+# The bot warns at startup when the pool runs but no provider points at it.
 #
 # Place it beside config.yaml in BOT_CONFIG_DIR. It is trusted policy exactly
 # like config.yaml: the bot reads it once at startup, never hot reloads it, and
@@ -25,7 +37,8 @@ workspace_id: 45e94c0b-fb14-4185-8b4b-5a365c8bc047
 server:
   host: 127.0.0.1
   port: 8000
-  # At least one client key. The first one becomes the provider's api_key.
+  # At least one client key. Requests to the pool must present one of these; a
+  # client that has no key configured here cannot authenticate.
   api_keys:
     - sk-local-1
   # Upstream Gemini model for requests that do not name a gemini-* model.

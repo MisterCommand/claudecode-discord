@@ -2,11 +2,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
-  GEMINI_BUSINESS_PROVIDER_VALUE, geminiBusinessProvider, geminiBusinessUrl,
-  parseProxyConfig, proxyConfigPath, readProxyConfig,
+  geminiBusinessUrl, parseProxyConfig, proxyConfigPath, readProxyConfig,
 } from "./config.js";
 import { geminiBusinessCredentialEnvironmentOverrides } from "./credentials.js";
-import { withGeminiBusinessProvider } from "../utils/config.js";
 
 const WORKSPACE = "45e94c0b-fb14-4185-8b4b-5a365c8bc047";
 
@@ -128,44 +126,15 @@ describe("proxy config file resolution", () => {
   });
 });
 
-describe("provider injection", () => {
-  it("points the /model entry at the pool's own address and key", () => {
+describe("pool URL", () => {
+  it("points a client at the port proxy.yaml asks for", () => {
     const config = parsed(valid.replace("  api_keys:\n    - sk-local-1", "  api_keys:\n    - sk-local-1\n  port: 9123"));
-    expect(geminiBusinessProvider(config)).toEqual({
-      value: GEMINI_BUSINESS_PROVIDER_VALUE,
-      label: "Gemini Business (embedded proxy)",
-      api_key: "sk-local-1",
-      base_url: "http://127.0.0.1:9123",
-      default_model: "gemini-3.8-flash",
-    });
+    expect(geminiBusinessUrl(config)).toBe("http://127.0.0.1:9123");
   });
 
   it("gives a wildcard bind address a loopback client URL", () => {
     expect(geminiBusinessUrl(parsed(valid.replace("server:\n", "server:\n  host: 0.0.0.0\n"))))
       .toBe("http://127.0.0.1:8000");
-  });
-
-  it("prepends the pool so it is the default for channels without an override", () => {
-    const claude = withGeminiBusinessProvider(
-      { providers: [{ value: "subscription", label: "Claude subscription" }] },
-      parsed(valid),
-    );
-    expect(claude.providers.map((provider) => provider.value))
-      .toEqual([GEMINI_BUSINESS_PROVIDER_VALUE, "subscription"]);
-  });
-
-  it("lets config.yaml replace the injected entry entirely", () => {
-    const custom = {
-      value: GEMINI_BUSINESS_PROVIDER_VALUE,
-      label: "Pool via config.yaml",
-      api_key: "sk-other",
-      base_url: "http://pool.internal:9000",
-    };
-    const claude = withGeminiBusinessProvider(
-      { default_provider: GEMINI_BUSINESS_PROVIDER_VALUE, providers: [custom] },
-      parsed(valid),
-    );
-    expect(claude.providers).toEqual([custom]);
   });
 });
 
