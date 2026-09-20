@@ -465,7 +465,11 @@ For Docker, authenticate inside the persistent `/home/node` volume.
 ### Pool accounts are disabled or requests fail
 
 - Run `npm run gemini -- check` to see which accounts still refresh their credentials.
-- An account is disabled after `pool.error_threshold` consecutive errors; expired cookies need a new `npm run gemini -- login`.
+- `Session has expired` is repaired automatically: the pool issues a new session, and signs the
+  account in again when its stored cookies are the problem, without counting against
+  `pool.error_threshold`. A reply naming `npm run gemini -- login` means the credential could not be
+  renewed, so run that command on the host computer.
+- An account is disabled after `pool.error_threshold` consecutive errors that no repair fixed.
 - An account captured for a different workspace is excluded from rotation; the log line `gemini_business_account_workspace_mismatch` names both ids. Re-capture with `npm run gemini -- login`, or correct `workspace_id`.
 
 ### Native SQLite installation fails

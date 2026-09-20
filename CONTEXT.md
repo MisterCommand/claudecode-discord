@@ -61,5 +61,5 @@ Trusted, non-secret policy for the Gemini Business Pool, held in `BOT_CONFIG_DIR
 _Avoid_: Proxy settings, agent configuration
 
 **Pool Account**:
-One Gemini Business account, captured by the startup sign-in and held in bot-owned runtime state rather than in Proxy Configuration, whose cookies and workspace identity let the Gemini Business Pool serve requests and whose credentials are secrets.
+One Gemini Business account, captured by the startup sign-in and held in bot-owned runtime state rather than in Proxy Configuration, whose cookies and workspace identity let the Gemini Business Pool serve requests and whose credentials are secrets. Its capture is replaced whenever a sign-in renews it, at startup or while the pool is serving.
 _Avoid_: Session, login

@@ -29,9 +29,9 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/claude/providers.test.ts` | 7 | Provider resolution order and subprocess environment mapping, including OAuth-preserving blanks | Pure functions, no child process |
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
 | `src/email/tools.test.ts` | 7 | Admin-only exposure, EWS NTLM setup, read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
-| `src/gemini-business/*.test.ts` | 124 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps, mocked filesystem/browser discovery, and a real server on an ephemeral port |
+| `src/gemini-business/*.test.ts` | 139 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation and session-expiry recovery, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps and upstream client, mocked filesystem/browser discovery, and a real server on an ephemeral port |
 | `src/utils/proxy-integration.test.ts` | 9 | Startup wiring: pool left disabled without `proxy.yaml`, the `/model` list left to `config.yaml` with it, the unwired-pool warning and its URL matching, and fatal errors for an invalid or unreadable file | Mocked trusted config directory, fresh module per scenario |
-| **Total** | **252** | | |
+| **Total** | **267** | | |
 
 ## What Each Test Covers
 
@@ -92,7 +92,7 @@ npx tsc --noEmit      # Type check only (no build output)
 - Newest-first Inbox listing and plain-text message binding without attachment downloads
 - Untrusted mailbox-content labels and secret redaction in tool errors
 
-## Embedded Gemini Business pool (124 tests)
+## Embedded Gemini Business pool (139 tests)
 
 - Anthropic Messages API ↔ OpenAI chat-completion translation, including system prompts, images, tool use, and tool results
 - Anthropic SSE block sequences for text-then-tool turns and text-only turns
@@ -100,6 +100,7 @@ npx tsc --noEmit      # Type check only (no build output)
 - Incremental JSON-array reading at arbitrary chunk sizes, plus upstream failures embedded in HTTP 200 bodies
 - Streaming chunks split mid tool call, SSE-framed deployments, and thought-reply filtering
 - Account rotation, disabled-account skipping, the error threshold, and per-account session caching
+- Session-expiry recovery: the expired-session pattern matching the messages the real client produces (and not a quota skip or a rate limit), a rejected session reissued without opening a browser, a dead cookie repaired by a sign-in that replaces the stored capture, a repaired expiry staying out of the account's error count, repairs bounded per turn, per-account retry and failover to a healthy account, streaming that restarts only while nothing was emitted, and an unrecoverably rejected credential reported with the re-login command
 - HTTP routes: auth by `x-api-key`/`Bearer`, Anthropic streaming frames, `[DONE]` termination, 400/401/500 dialects, and unknown paths
 - `proxy.yaml` schema: the required `workspace_id`, documented defaults, a mandatory API key, a rejected `accounts` section, and `sso.team_id` staying out of scope
 - Chrome discovery order (explicit path, `CHROME_PATH`, detected installation) and the descriptive failure
@@ -108,6 +109,7 @@ npx tsc --noEmit      # Type check only (no build output)
 - Captured-account persistence: replacement by name, structural rejection of a malformed capture, and corrupt-file recovery
 - Workspace binding: a capture from another workspace is never probed or served, is re-captured against the configured workspace, and a same-workspace stale account stays in rotation
 - Secret redaction in sign-in failures
+- Runtime recovery over the real HTTP route: an expiry mid-run re-authenticates and rewrites the store entry, and a pool with sign-in disabled reports the setting instead of opening a browser
 
 ## Embedded pool startup wiring (9 tests)
 

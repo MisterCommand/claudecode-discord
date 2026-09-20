@@ -12,7 +12,7 @@
  */
 
 import { AccountManager } from "./account-manager.js";
-import { chatCompletionWithRotation } from "./rotation.js";
+import { chatCompletionWithRotation, type RotationRecovery, type UpstreamApi } from "./rotation.js";
 import { startServer, type RunningServer } from "./server.js";
 import { geminiBusinessUrl, type GeminiBusinessConfig } from "./config.js";
 import {
@@ -20,7 +20,7 @@ import {
   type CredentialCheck, type SignInOptions,
 } from "./signin.js";
 import { GeminiAccountStore } from "./account-store.js";
-import type { ConfiguredAccount } from "./types.js";
+import type { ConfiguredAccount, GeminiBusinessAccount } from "./types.js";
 
 /** Provider name used when neither `proxy.yaml` nor the environment sets one. */
 const DEFAULT_SSO_PROVIDER = "locations/global/workforcePools/hkust-saml-pool/providers/entra-id-oidc";
@@ -36,13 +36,14 @@ export interface GeminiBusinessPoolOptions {
     provider?: string;
   };
   /**
-   * Credential probe and browser sign-in. Injectable so the startup policy —
-   * probe first, sign in only on failure — is testable without a network or a
-   * browser, exactly like the server's request handler.
+   * Credential probe, browser sign-in, and upstream client. Injectable so the
+   * startup policy — probe first, sign in only on failure — is testable without
+   * a network or a browser, exactly like the server's request handler.
    */
   deps?: {
     checkCredentials(account: ConfiguredAccount): Promise<CredentialCheck>;
     signIn(options: SignInOptions): Promise<ConfiguredAccount>;
+    createApi?(account: GeminiBusinessAccount): UpstreamApi;
   };
 }
 
@@ -56,6 +57,93 @@ export interface RunningGeminiBusinessPool {
   /** Enabled account names in rotation order, after any startup sign-in. */
   accountNames(): string[];
   close(): Promise<void>;
+}
+
+/**
+ * Re-authentication for a running pool.
+ *
+ * The startup policy answers "which accounts can serve this run"; this answers
+ * the same question mid-run, when upstream rejects a credential that was still
+ * accepted when the process started. It shares the startup sign-in path, so one
+ * deployment has exactly one way to obtain an account.
+ */
+interface PoolRecoveryDeps extends GeminiBusinessPoolOptions {
+  store: GeminiAccountStore;
+  config: GeminiBusinessConfig;
+}
+
+/** Opens the browser sign-in for one account, exactly as startup does. */
+function signInForAccount(
+  config: GeminiBusinessConfig,
+  options: GeminiBusinessPoolOptions,
+  name: string,
+): Promise<ConfiguredAccount> {
+  const deps = options.deps ?? REAL_DEPS;
+  return deps.signIn({
+    name,
+    provider: config.sso.provider ?? options.sso?.provider ?? DEFAULT_SSO_PROVIDER,
+    teamId: config.workspace_id,
+    headless: true,
+    log: (message) => console.log(`[gemini-business:${name}] ${message}`),
+  });
+}
+
+function makeRecovery({ config, store, ...options }: PoolRecoveryDeps): RotationRecovery {
+  const ssoConfigured = Boolean(options.sso?.email && options.sso?.password);
+  const allowed = config.sso.enabled && ssoConfigured;
+  // Concurrent turns can reach the same dead account together; one sign-in
+  // serves them all rather than opening a browser per request.
+  const inFlight = new Map<string, Promise<ConfiguredAccount | null>>();
+
+  const signIn = async (name: string): Promise<ConfiguredAccount | null> => {
+    try {
+      const captured = await signInForAccount(config, options, name);
+      if (captured.team_id !== config.workspace_id) {
+        logSignIn("gemini_business_account_workspace_mismatch", name, {
+          captured_workspace: captured.team_id,
+          configured_workspace: config.workspace_id,
+        });
+        return null;
+      }
+      // One account is one store entry, whatever the sign-in flow reports back.
+      const refreshed = { ...captured, name };
+      store.save(refreshed);
+      logSignIn("gemini_business_account_refreshed", name, { team_id: refreshed.team_id });
+      return refreshed;
+    } catch (error) {
+      const detail = cleanSignInError(error, signInSecrets(options));
+      logSignIn("gemini_business_account_sign_in_failed", name, { reason: detail });
+      console.warn(
+        `Sign-in for Gemini Business account "${name}" failed: ${detail}. `
+        + "Run `npm run gemini -- login --no-sso` to sign in by hand.",
+      );
+      return null;
+    }
+  };
+
+  return {
+    async reauthenticate(account) {
+      if (!allowed) {
+        const reason = !config.sso.enabled
+          ? "startup sign-in is disabled by sso.enabled in proxy.yaml"
+          : "set GEMINI_SSO_EMAIL and GEMINI_SSO_PASSWORD to enable automatic sign-in";
+        logSignIn("gemini_business_account_expired", account.name, { reason: "credentials rejected" });
+        console.warn(
+          `Gemini Business credentials for account "${account.name}" were rejected by upstream `
+          + `and this pool cannot sign in again (${reason}); it stays in rotation but will keep failing.`,
+        );
+        return null;
+      }
+
+      logSignIn("gemini_business_account_expired", account.name, { reason: "credentials rejected" });
+      let pending = inFlight.get(account.name);
+      if (!pending) {
+        pending = signIn(account.name).finally(() => inFlight.delete(account.name));
+        inFlight.set(account.name, pending);
+      }
+      return pending;
+    },
+  };
 }
 
 function logSignIn(event: string, account: string, detail: Record<string, unknown> = {}): void {
@@ -161,13 +249,7 @@ async function refreshAccounts(
     logSignIn("gemini_business_account_expired", account.name, { reason: check.error.split("\n")[0] });
     let captured: ConfiguredAccount;
     try {
-      captured = await deps.signIn({
-        name: account.name,
-        provider: config.sso.provider ?? sso?.provider ?? DEFAULT_SSO_PROVIDER,
-        teamId: config.workspace_id,
-        headless: true,
-        log: (message) => console.log(`[gemini-business:${account.name}] ${message}`),
-      });
+      captured = await signInForAccount(config, options, account.name);
     } catch (error) {
       // A failed sign-in must not take the bot down: other accounts may still
       // work, and the operator can fix the credentials and restart.
@@ -214,13 +296,7 @@ async function refreshAccounts(
     logSignIn("gemini_business_account_expired", name, { reason: "no account configured" });
     let captured: ConfiguredAccount;
     try {
-      captured = await deps.signIn({
-        name,
-        provider: config.sso.provider ?? sso?.provider ?? DEFAULT_SSO_PROVIDER,
-        teamId: config.workspace_id,
-        headless: true,
-        log: (message) => console.log(`[gemini-business:${name}] ${message}`),
-      });
+      captured = await signInForAccount(config, options, name);
     } catch (error) {
       // Without an account the pool has nothing to serve, so this is fatal —
       // but the operator gets the provider's own explanation.
@@ -246,6 +322,7 @@ export async function startGeminiBusinessPool(
 
   // The pool's own type only carries the runtime fields it needs.
   const manager = new AccountManager({ ...config, accounts: served });
+  const recovery = makeRecovery({ config, store, ...options });
   const running: RunningServer = await startServer(
     {
       host: config.server.host,
@@ -253,10 +330,15 @@ export async function startGeminiBusinessPool(
       api_keys: config.server.api_keys,
       default_model: config.server.default_model,
     },
-    { chatCompletion: (request, signal) => chatCompletionWithRotation(manager, request, signal) },
+    {
+      chatCompletion: (request, signal) => chatCompletionWithRotation(manager, request, signal, {
+        recovery,
+        ...(options.deps?.createApi ? { createApi: options.deps.createApi } : {}),
+      }),
+    },
   );
 
-  const url = geminiBusinessUrl(config);
+  const url = geminiBusinessUrl(config, running.port);
   const enabled = manager.getAccounts().filter((account) => account.enabled);
   console.log(JSON.stringify({
     timestamp: new Date().toISOString(),

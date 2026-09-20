@@ -22,6 +22,18 @@ not configured in `proxy.yaml` at all: every captured account is persisted to
 `gemini-accounts.json`, bot-owned runtime state beside `data.db`, which is the
 single source of accounts for the pool.
 
+The same repair runs while the pool serves, for the same reason: upstream retires
+a session well before its stored cookies look stale locally, so an account that
+was healthy at startup can be rejected mid-run. A rejected session is reissued
+for that account and the turn retried; a stored credential upstream refuses even
+after that is replaced by a fresh sign-in, and the capture is persisted as
+usual. Repairs never count toward `pool.error_threshold`, because an expiry that
+one sign-in fixes must not remove an account from rotation, and a streaming turn
+is only restarted while nothing has been forwarded — a half-written answer cannot
+be replayed without duplicating it in the client. `sso.enabled: false` keeps its
+meaning at runtime: the pool reports the rejected credential and the failure
+rather than opening a browser.
+
 ## Consequences
 
 `proxy.yaml` starts the pool but never writes to the `/model` list: reaching the

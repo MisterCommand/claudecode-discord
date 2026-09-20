@@ -595,6 +595,14 @@ whatever credentials it already has and logs the reason when they are rejected.
 Credentials are removed from the Claude subprocess environment, alongside
 `EWS_PASSWORD`.
 
+The same repair runs while the bot is serving. When upstream rejects a session
+with `Session has expired`, the pool issues a new session for that account and
+retries the turn; if the account's stored cookies are the problem, it signs the
+account in again and replaces the stored capture. Neither step counts against
+`pool.error_threshold`, so an expiry does not disable an account that a sign-in
+repairs. Only when a credential cannot be repaired does the reply name the
+command that fixes it.
+
 The login command stays available for a deliberate capture — a first account on
 a machine where you would rather watch, or a step the automation cannot clear:
 

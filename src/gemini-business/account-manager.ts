@@ -5,7 +5,7 @@
  * Nothing here touches the filesystem: health and session state are process-local.
  */
 
-import type { AppConfig, GeminiBusinessAccount } from './types.js';
+import type { AppConfig, ConfiguredAccount, GeminiBusinessAccount } from './types.js';
 
 export class AccountManager {
   private readonly config: AppConfig;
@@ -106,6 +106,27 @@ export class AccountManager {
 
     account.session_id = sessionId;
     account.session_expires = Date.now() + expiresIn;
+  }
+
+  /**
+   * Adopt a fresh capture for an account that was signed in again.
+   *
+   * The session and JWT minted from the credentials being replaced go with them:
+   * they were built from the rejected cookie, so reusing them would rebuild the
+   * same failure.
+   */
+  updateCredentials(name: string, capture: ConfiguredAccount): void {
+    const account = this.accounts.find(acc => acc.name === name);
+    if (!account) return;
+
+    account.team_id = capture.team_id;
+    account.cookies = capture.cookies;
+    account.csesidx = capture.csesidx;
+    account.user_agent = capture.user_agent;
+    account.session_id = undefined;
+    account.session_expires = undefined;
+    account.cached_jwt = undefined;
+    account.cached_jwt_expires = undefined;
   }
 
   /**

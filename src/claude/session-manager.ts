@@ -283,7 +283,9 @@ class SessionManager {
     } catch (error) {
       const stopped = this.active.get(chain.id)?.stopped;
       const raw = error instanceof Error ? error.message : "Unknown error";
-      const auth = /credit balance|not authenticated|unauthorized|login required|expired|not logged in/i.test(raw)
+      // A provider that already reported its own recovery step is not told to run
+      // `claude login`, which would send the operator down the wrong path.
+      const auth = !raw.includes("🔑") && /credit balance|not authenticated|unauthorized|login required|expired|not logged in/i.test(raw)
         ? "\n\n🔑 Run `claude login` on the host computer, then try again." : "";
       const notices = [...blockedNotices.values()];
       const blocked = notices.length ? `\n\n${notices.join("\n")}` : "";

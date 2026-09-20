@@ -115,8 +115,8 @@ function clientHost(host: string): string {
   return host;
 }
 
-export function geminiBusinessUrl(config: GeminiBusinessConfig): string {
-  return `http://${clientHost(config.server.host)}:${config.server.port}`;
+export function geminiBusinessUrl(config: GeminiBusinessConfig, boundPort?: number): string {
+  return `http://${clientHost(config.server.host)}:${boundPort ?? config.server.port}`;
 }
 
 function formatIssues(error: z.ZodError): string[] {

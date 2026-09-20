@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { GeminiAccountStore } from "./account-store.js";
 import { startGeminiBusinessPool } from "./pool.js";
 import type { GeminiBusinessConfig } from "./config.js";
-import type { ConfiguredAccount } from "./types.js";
+import type { ConfiguredAccount, ChatCompletionResponse } from "./types.js";
 import type { CredentialCheck, SignInOptions } from "./signin.js";
 
 const WORKSPACE = "45e94c0b-fb14-4185-8b4b-5a365c8bc047";
@@ -366,3 +366,122 @@ describe("GeminiAccountStore", () => {
     expect(stored[0].csesidx).toBe("1234");
   });
 });
+
+/** Minimal chunk sequence the pool's rotation turns into its own SSE frames. */
+function streamedText(text: string): AsyncIterable<ChatCompletionResponse> {
+  const chunks: ChatCompletionResponse[] = [
+    {
+      id: 'chatcmpl-1',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: 'gemini-3.8-flash',
+      choices: [{ index: 0, delta: { role: 'assistant', content: text }, finish_reason: null }],
+    },
+    {
+      id: 'chatcmpl-1',
+      object: 'chat.completion.chunk',
+      created: 0,
+      model: 'gemini-3.8-flash',
+      choices: [{ index: 0, delta: { role: 'assistant', content: '' }, finish_reason: 'stop' }],
+    },
+  ];
+  return (async function* () {
+    yield* chunks;
+  })();
+}
+
+describe("credential recovery while serving", () => {
+  const sso = { email: "a@b.com", password: "secret" };
+
+  function postChat(pool: { url: string }, stream = true): Promise<Response> {
+    return fetch(`${pool.url}/v1/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer sk-test' },
+      body: JSON.stringify({ model: 'gemini-3.8-flash', messages: [{ role: 'user', content: 'hi' }], stream }),
+    });
+  }
+
+  it("re-logs in over the HTTP route when the account's session expires mid-run", async () => {
+    const directory = tempDirectory();
+    storeAccounts(directory, [account("primary")]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    let calls = 0;
+    const signIn = signInMock();
+    const pool = await startGeminiBusinessPool(config(), {
+      dataDirectory: directory,
+      sso,
+      deps: {
+        checkCredentials: async () => ({ ok: true }),
+        signIn,
+        createApi: () => ({
+          needsSessionRefresh: () => false,
+          refreshSession: async () => {
+            throw new Error("Failed to create session: 403 Forbidden");
+          },
+          chatCompletion: async () => {
+            // The stored credential is rejected once, then the capture works.
+            if (calls++ === 0) throw new Error("Gemini Business error: 13 INTERNAL Session has expired");
+            return streamedText("recovered");
+          },
+        }),
+      },
+    });
+
+    try {
+      const response = await postChat(pool);
+      expect(response.status).toBe(200);
+      expect(await response.text()).toContain("recovered");
+      expect(signIn).toHaveBeenCalledOnce();
+
+      // The capture replaced the store entry, so a restart serves the new cookie.
+      const stored = new GeminiAccountStore(directory).read();
+      expect(stored[0].cookies.secure_c_ses).toBe("CSE.new");
+      expect(stored[0].csesidx).toBe("999");
+    } finally {
+      await pool.close();
+    }
+  });
+
+  it("does not open a browser when sign-in is disabled, and names the setting", async () => {
+    const directory = tempDirectory();
+    storeAccounts(directory, [account("primary")]);
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "log").mockImplementation(() => {});
+
+    const signIn = signInMock();
+    const pool = await startGeminiBusinessPool(config({ sso: { enabled: false } }), {
+      dataDirectory: directory,
+      sso,
+      deps: {
+        checkCredentials: async () => ({ ok: true }),
+        signIn,
+        createApi: () => ({
+          needsSessionRefresh: () => false,
+          refreshSession: async () => {
+            throw new Error("Failed to create session: 403 Forbidden");
+          },
+          chatCompletion: async () => {
+            throw new Error("Gemini Business error: 13 INTERNAL Session has expired");
+          },
+        }),
+      },
+    });
+
+    try {
+      // No stream was opened, so the failure is a request-level error.
+      const response = await postChat(pool);
+      expect(response.status).toBe(500);
+      const body = await response.text();
+      expect(body).toContain("Session has expired");
+      expect(body).toContain("npm run gemini -- login");
+
+      expect(signIn).not.toHaveBeenCalled();
+      expect(warn.mock.calls.flat().join(" ")).toMatch(/sso\.enabled/);
+    } finally {
+      await pool.close();
+    }
+  });
+});
+
