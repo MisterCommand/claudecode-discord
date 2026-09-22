@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GeminiBusinessAPI } from './gemini-business-api.js';
+import { GeminiBusinessAPI, UpstreamRequestRejection } from './gemini-business-api.js';
 import { ChatCompletionResponse, GeminiBusinessAccount, ToolDefinition } from './types.js';
 
 const mockAccount: GeminiBusinessAccount = {
@@ -182,5 +182,22 @@ describe('upstream failures inside a 200 body', () => {
     ]);
 
     await expect(streamBody(body)).rejects.toThrow(/500 INTERNAL planner exploded/);
+  });
+
+  it('types a refusal carried in the body as a request rejection', async () => {
+    // The real refusal the pool receives once the flattened prompt outgrows the
+    // model window: the machine-readable cause is in `details[].reason`.
+    const refusal = {
+      error: {
+        code: 400,
+        status: 'INVALID_ARGUMENT',
+        message: 'Request contains an invalid argument.',
+        details: [{ '@type': 'type.googleapis.com/google.rpc.ErrorInfo', reason: 'PROMPT_TOO_LARGE' }],
+      },
+    };
+
+    const failure = await streamBody(widgetBody([refusal])).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamRequestRejection);
+    expect((failure as Error).message).toContain('PROMPT_TOO_LARGE');
   });
 });

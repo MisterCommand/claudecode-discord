@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { startServer, type RunningServer } from './server.js';
+import { UpstreamRequestRejection } from './gemini-business-api.js';
 import type { ChatCompletionRequest, ChatCompletionResponse } from './types.js';
 
 const API_KEY = 'sk-test-123';
@@ -249,6 +250,36 @@ describe('routing', () => {
     expect(response.status).toBe(500);
     const body = await response.json();
     expect(body.error).toEqual({ type: 'api_error', message: 'no available accounts' });
+  });
+
+  it('reports a refused request as invalid_request_error so the client can recover', async () => {
+    running = await startServer(
+      { host: '127.0.0.1', port: 0, api_keys: [], default_model: 'gemini-3.8-flash' },
+      {
+        chatCompletion: async () => {
+          throw new UpstreamRequestRejection('Chat completion failed: 400 Bad Request\nPROMPT_TOO_LARGE');
+        },
+      }
+    );
+
+    const base = `http://127.0.0.1:${running.port}`;
+    const response = await post(base, '/v1/messages', userTurn);
+
+    // Claude Code only treats a refusal as a context overflow — and compacts the
+    // conversation — when the dialect is invalid_request_error and the message
+    // reads as a size problem. An api_error would only be reported as a fault.
+    expect(response.status).toBe(400);
+    const body = await response.json();
+    expect(body.error.type).toBe('invalid_request_error');
+    expect(body.error.message).toContain('PROMPT_TOO_LARGE');
+
+    // The OpenAI-dialect route classifies the same failure identically.
+    const openai = await post(base, '/v1/chat/completions', {
+      model: 'gemini-3.8-flash',
+      messages: [{ role: 'user', content: 'ping' }],
+    });
+    expect(openai.status).toBe(400);
+    expect((await openai.json()).error.type).toBe('invalid_request_error');
   });
 
   it('serves without auth when no keys are configured', async () => {

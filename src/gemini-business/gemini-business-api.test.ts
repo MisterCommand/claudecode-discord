@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest';
-import { GeminiBusinessAPI } from './gemini-business-api.js';
-import { GeminiBusinessAccount } from './types.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { GeminiBusinessAPI, UpstreamRequestRejection } from './gemini-business-api.js';
+import { ChatCompletionRequest, GeminiBusinessAccount } from './types.js';
 
 const mockAccount: GeminiBusinessAccount = {
   name: 'Test Account',
@@ -146,5 +146,79 @@ describe('convertToOpenAIFormat', () => {
     const data = { unexpected: 'format' };
     const result = convertToOpenAIFormat(data, 'gemini-2.5-flash');
     expect(result.choices[0].message.content).toBe('');
+  });
+});
+
+describe('chatCompletion refusal typing', () => {
+  /** A stable account with a live session, so only the POST under test runs. */
+  function liveApi(): GeminiBusinessAPI {
+    const api = new GeminiBusinessAPI({
+      ...mockAccount,
+      session_id: 'session-123',
+      session_expires: Date.now() + 60_000,
+      cached_jwt: 'jwt',
+      cached_jwt_expires: Date.now() + 60_000,
+    });
+    return api;
+  }
+
+  const request: ChatCompletionRequest = {
+    model: 'gemini-3.8-flash',
+    messages: [{ role: 'user', content: 'hi' }],
+  };
+
+  function respondWith(response: Response): void {
+    vi.stubGlobal('fetch', vi.fn(async () => response));
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('types a 400 as a request rejection', async () => {
+    respondWith(new Response(
+      '[{"error":{"code":400,"status":"INVALID_ARGUMENT","details":[{"reason":"PROMPT_TOO_LARGE"}]}}]',
+      { status: 400, statusText: 'Bad Request' },
+    ));
+
+    const failure = await liveApi().chatCompletion(request).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(UpstreamRequestRejection);
+    expect((failure as Error).message).toContain('PROMPT_TOO_LARGE');
+  });
+
+  it('spells out the refusal so the client recognises and recovers from it', async () => {
+    // Claude Code classifies such an error as `prompt_too_long` — the branch that
+    // compacts the conversation and retries — by matching these two phrases
+    // against the lowercased message. An underscored wire code such as
+    // PROMPT_TOO_LARGE matches neither, and an unrecognised 400 is surfaced as a
+    // dead end instead of being recovered from.
+    const lower = (message: string) => message.toLowerCase();
+    const isPromptTooLong = (message: string) =>
+      lower(message).includes('prompt is too long')
+      || lower(message).includes('input length and `max_tokens` exceed context limit');
+
+    respondWith(new Response(
+      '[{"error":{"code":400,"status":"INVALID_ARGUMENT","details":[{"reason":"PROMPT_TOO_LARGE"}]}}]',
+      { status: 400, statusText: 'Bad Request' },
+    ));
+
+    const failure = await liveApi().chatCompletion(request).catch((error: unknown) => error);
+    expect(isPromptTooLong((failure as Error).message)).toBe(true);
+  });
+
+  it('keeps an account-side failure a plain error, so retry and failover still apply', async () => {
+    respondWith(new Response('quota exhausted', { status: 429, statusText: 'Too Many Requests' }));
+
+    const failure = await liveApi().chatCompletion(request).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(failure).not.toBeInstanceOf(UpstreamRequestRejection);
+    expect((failure as Error).message).toContain('429');
+  });
+
+  it('keeps a server failure a plain error', async () => {
+    respondWith(new Response('planner exploded', { status: 500, statusText: 'Internal Server Error' }));
+
+    const failure = await liveApi().chatCompletion(request).catch((error: unknown) => error);
+    expect(failure).not.toBeInstanceOf(UpstreamRequestRejection);
   });
 });

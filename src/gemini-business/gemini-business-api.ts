@@ -76,6 +76,67 @@ export const MODEL_ID_MAP: Record<string, string> = {
 /** Model ids advertised by `GET /v1/models`. */
 export const SUPPORTED_MODELS: string[] = Object.keys(MODEL_ID_MAP);
 
+/**
+ * Upstream refused the request itself, not the account serving it.
+ *
+ * `widgetStreamAssist` answers 400 `INVALID_ARGUMENT` with reason
+ * `PROMPT_TOO_LARGE` once the flattened prompt outgrows the model's window. Every
+ * account sends the same prompt, so retrying, failing over, or signing in again
+ * reproduces the identical rejection: the caller must surface it instead of
+ * charging it to an account.
+ */
+export class UpstreamRequestRejection extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'UpstreamRequestRejection';
+  }
+}
+
+/** Upstream's own reason for refusing a request body. */
+const REQUEST_REJECTION_REASON = /PROMPT_TOO_LARGE/;
+
+/**
+ * Spells out a refusal whose cause the client must recognise.
+ *
+ * The client recognises an over-large prompt by matching plain phrases in the
+ * message — `prompt is too long` (lowercased) or `input length and \`max_tokens\`
+ * exceed context limit` — and only then compacts the conversation and retries the
+ * turn. Upstream's own reason is an underscored wire code (`PROMPT_TOO_LARGE`)
+ * that matches neither, so the phrase is stated outright rather than left
+ * implied. Without it the client sees an unclassifiable client error and the
+ * conversation stays stuck instead of recovering.
+ */
+function describeRejection(detail: string): string {
+  if (!REQUEST_REJECTION_REASON.test(detail)) return detail;
+  return `${detail}\nPrompt is too long: this request exceeds the model's context window `
+    + '(the input length and `max_tokens` exceed context limit). '
+    + 'The conversation is too large and must be compacted or trimmed before it can be sent.';
+}
+
+/**
+ * Types a refused response.
+ *
+ * A 4xx that is not the account's own condition (401/403 refused credential,
+ * 429 quota, 408 retryable) says upstream refused this request body, so every
+ * account would refuse it identically. The body is searched too, because a
+ * refusal can also arrive inside an HTTP 200 answer chunk.
+ */
+function refusedResponse(status: number, statusText: string, body: string): Error {
+  const detail = `Chat completion failed: ${status} ${statusText}\n${body}`;
+  const accountCondition = status === 401 || status === 403 || status === 408 || status === 429;
+  const requestSide = status >= 400 && status < 500 && !accountCondition;
+  return requestSide || REQUEST_REJECTION_REASON.test(body)
+    ? new UpstreamRequestRejection(describeRejection(detail))
+    : new Error(detail);
+}
+
+/** Throws a failure carried inside an HTTP 200 body, keeping a refused request typed. */
+function throwElementFailure(failure: string): never {
+  throw REQUEST_REJECTION_REASON.test(failure)
+    ? new UpstreamRequestRejection(describeRejection(failure))
+    : new Error(failure);
+}
+
 export class GeminiBusinessAPI {
   private account: GeminiBusinessAccount;
 
@@ -279,8 +340,7 @@ export class GeminiBusinessAPI {
       });
 
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Chat completion failed: ${response.status} ${response.statusText}\n${errorText}`);
+        throw refusedResponse(response.status, response.statusText, await response.text());
       }
 
       // Handle streaming response
@@ -292,6 +352,9 @@ export class GeminiBusinessAPI {
       const data = await response.json();
       return this.convertToOpenAIFormat(data, request.model, tools);
     } catch (error) {
+      // A refusal is already typed for the caller; re-wrapping it would erase the
+      // distinction between "this prompt is unacceptable" and "this account failed".
+      if (error instanceof UpstreamRequestRejection) throw error;
       throw new Error(`Chat completion request failed: ${error}`);
     }
   }
@@ -439,7 +502,7 @@ export class GeminiBusinessAPI {
   ): ChatCompletionResponse {
     const failure = responseFailure(data);
     if (failure) {
-      throw new Error(failure);
+      throwElementFailure(failure);
     }
 
     const fullText = extractResponseText(data);
@@ -556,7 +619,7 @@ export class GeminiBusinessAPI {
         const collect = (payload: unknown) => {
           const failure = elementFailure(payload);
           if (failure) {
-            throw new Error(failure);
+            throwElementFailure(failure);
           }
 
           const content = extractChunkText(payload);
@@ -829,7 +892,14 @@ function elementFailure(element: unknown): string | null {
     const code = 'code' in error ? error.code : undefined;
     const status = 'status' in error ? error.status : undefined;
     const message = 'message' in error ? error.message : undefined;
-    const parts = [code, status, message]
+    // The machine-readable cause (`PROMPT_TOO_LARGE`, `QUOTA_EXCEEDED`, …) lives
+    // in `details[].reason`, not in the human-readable `message`.
+    const details = 'details' in error && Array.isArray(error.details) ? error.details : [];
+    const reasons = details
+      .map((detail) => (typeof detail === 'object' && detail !== null && 'reason' in detail ? detail.reason : undefined))
+      .filter((reason) => reason !== undefined && reason !== null)
+      .map(String);
+    const parts = [code, status, message, ...reasons]
       .filter((part) => part !== undefined && part !== null)
       .map((part) => String(part));
     return `Gemini Business error: ${parts.join(' ') || 'unspecified'}`;

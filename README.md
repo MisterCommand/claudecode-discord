@@ -603,6 +603,15 @@ account in again and replaces the stored capture. Neither step counts against
 repairs. Only when a credential cannot be repaired does the reply name the
 command that fixes it.
 
+A request upstream refuses on its own terms — most visibly `PROMPT_TOO_LARGE`,
+once a long conversation outgrows the model's window — is handled differently,
+because no account can answer it any differently. It is reported straight away
+instead of being retried across the pool, and it does not count against an
+account, so one oversized conversation cannot disable the accounts and leave
+later turns failing with an empty pool. The pool returns it as a client error,
+which lets Claude Code compact the conversation and continue rather than
+reporting a provider fault.
+
 The login command stays available for a deliberate capture — a first account on
 a machine where you would rather watch, or a step the automation cannot clear:
 

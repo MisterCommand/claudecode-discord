@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { AccountManager } from './account-manager.js';
+import { UpstreamRequestRejection } from './gemini-business-api.js';
 import {
   chatCompletionWithRotation, isSessionExpiredError, MAX_CREDENTIAL_REPAIRS,
   type RotationRecovery, type UpstreamApi,
@@ -63,8 +64,12 @@ const EXPIRED = 'Chat completion request failed: Gemini Business error: 13 INTER
 /**
  * A scripted upstream client: each `chatCompletion` consumes the next outcome.
  * Records how often the session was reissued, which is the cheap repair.
+ *
+ * An outcome carries a plain `string` (wrapped in an `Error`, as the api layer
+ * does for an account-side failure) or a ready `Error` (which is how a refusal
+ * arrives, so its type survives to the rotation policy).
  */
-function scriptedApi(outcomes: Array<{ error: string } | { text: string }>) {
+function scriptedApi(outcomes: Array<{ error: string | Error } | { text: string }>) {
   const state = { refreshes: 0, calls: 0 };
   const createApi = (): UpstreamApi => ({
     needsSessionRefresh: () => false,
@@ -73,7 +78,7 @@ function scriptedApi(outcomes: Array<{ error: string } | { text: string }>) {
     },
     chatCompletion: async () => {
       const outcome = outcomes[Math.min(state.calls++, outcomes.length - 1)];
-      if ('error' in outcome) throw new Error(outcome.error);
+      if ('error' in outcome) throw outcome.error;
       return completion(outcome.text);
     },
   });
@@ -235,6 +240,53 @@ describe('chatCompletionWithRotation credential repair', () => {
     // A rate limit is not repaired: it must not open a browser or reissue a session.
     expect(recoverySpy.calls).toBe(0);
     expect(state.refreshes).toBe(0);
+  });
+});
+
+describe('chatCompletionWithRotation request refusal', () => {
+  /** The refusal the api layer raises for a prompt that outgrew the model window. */
+  const TOO_LARGE = () => new UpstreamRequestRejection(
+    'Chat completion failed: 400 Bad Request\n[{"error":{"code":400,"message":"Request contains an invalid argument.",'
+    + '"status":"INVALID_ARGUMENT","details":[{"reason":"PROMPT_TOO_LARGE"}]}}]',
+  );
+
+  it('does not retry, fail over, or charge the account for an oversized prompt', async () => {
+    const manager = new AccountManager(makeConfig([account('only')]));
+    const { state, createApi } = scriptedApi([{ error: TOO_LARGE() }]);
+    const recoverySpy = recovery();
+
+    await expect(chatCompletionWithRotation(manager, request(), undefined, {
+      createApi, recovery: recoverySpy,
+    })).rejects.toThrow(/PROMPT_TOO_LARGE/);
+
+    // Every account receives the same prompt, so neither a retry nor a sign-in can
+    // change the answer: exactly one upstream call, and the account stays healthy.
+    expect(state.calls).toBe(1);
+    expect(recoverySpy.calls).toBe(0);
+    expect(state.refreshes).toBe(0);
+    const stored = manager.getAccounts()[0];
+    expect(stored.error_count).toBe(0);
+    expect(stored.enabled).toBe(true);
+  });
+
+  it('keeps the account in rotation for the next turn after a refusal', async () => {
+    const manager = new AccountManager(makeConfig([account('only')]));
+    const tooLarge = scriptedApi([{ error: TOO_LARGE() }]);
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await expect(chatCompletionWithRotation(manager, request(), undefined, {
+      createApi: tooLarge.createApi,
+    })).rejects.toThrow(/PROMPT_TOO_LARGE/);
+
+    // Three refusals used to disable the pool's only account, so the turn after
+    // them failed with "No available accounts" instead of serving the request.
+    const healthy = scriptedApi([{ text: 'next turn works' }]);
+    const result = await chatCompletionWithRotation(manager, request(), undefined, {
+      createApi: healthy.createApi,
+    });
+
+    expect(completionText(result)).toBe('next turn works');
+    expect(manager.getAccounts()[0].enabled).toBe(true);
   });
 });
 

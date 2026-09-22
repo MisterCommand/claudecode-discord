@@ -14,7 +14,7 @@
  */
 
 import type { AccountManager } from './account-manager.js';
-import { GeminiBusinessAPI, SESSION_TTL_MS } from './gemini-business-api.js';
+import { GeminiBusinessAPI, SESSION_TTL_MS, UpstreamRequestRejection } from './gemini-business-api.js';
 import type {
   ChatCompletionRequest, ChatCompletionResponse, ConfiguredAccount, GeminiBusinessAccount,
 } from './types.js';
@@ -245,6 +245,12 @@ export async function chatCompletionWithRotation(
         ? repairedFrames(opened, account, accountManager, request, signal, options)
         : opened.response as ChatCompletionResponse;
     } catch (error) {
+      // Upstream refused the request body, not the account. Every account would
+      // refuse the same prompt, so retrying burns the pool's quota and failover
+      // charges a healthy account for a defect in the caller's prompt. An
+      // unrepaired credential is reported by the api layer as a plain Error and
+      // still takes the account-health path below.
+      if (error instanceof UpstreamRequestRejection) throw error;
       lastError = await failOver(accountManager, account, error, attempt, pool.max_retries, pool.retry_delay);
     }
   }

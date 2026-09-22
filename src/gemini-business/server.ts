@@ -19,7 +19,7 @@ import type {
   ChatCompletionResponse,
   ModelInfo,
 } from './types.js';
-import { SUPPORTED_MODELS } from './gemini-business-api.js';
+import { SUPPORTED_MODELS, UpstreamRequestRejection } from './gemini-business-api.js';
 import { anthropicStreamEvents, toAnthropicMessage, toAnthropicSSE, toChatCompletionRequest } from './anthropic.js';
 
 export interface ServerOptions {
@@ -155,7 +155,8 @@ async function handleMessages(
   try {
     result = await deps.chatCompletion(request, signal);
   } catch (error) {
-    sendJson(res, 500, anthropicError('api_error', messageOf(error)));
+    const { status, type } = failureDialect(error);
+    sendJson(res, status, anthropicError(type, messageOf(error)));
     return;
   }
 
@@ -176,7 +177,8 @@ async function handleMessages(
       await writeFrame(res, toAnthropicSSE(event));
     }
   } catch (error) {
-    await writeFrame(res, `event: error\ndata: ${JSON.stringify(anthropicError('api_error', messageOf(error)))}\n\n`).catch(
+    const { type } = failureDialect(error);
+    await writeFrame(res, `event: error\ndata: ${JSON.stringify(anthropicError(type, messageOf(error)))}\n\n`).catch(
       () => {}
     );
   }
@@ -216,7 +218,8 @@ async function handleChatCompletions(
   try {
     result = await deps.chatCompletion(request, signal);
   } catch (error) {
-    sendJson(res, 500, openaiError('api_error', messageOf(error)));
+    const { status, type } = failureDialect(error);
+    sendJson(res, status, openaiError(type, messageOf(error)));
     return;
   }
 
@@ -237,7 +240,8 @@ async function handleChatCompletions(
     }
     await writeFrame(res, 'data: [DONE]\n\n');
   } catch (error) {
-    await writeFrame(res, `data: ${JSON.stringify(openaiError('api_error', messageOf(error)))}\n\n`).catch(() => {});
+    const { type } = failureDialect(error);
+    await writeFrame(res, `data: ${JSON.stringify(openaiError(type, messageOf(error)))}\n\n`).catch(() => {});
   }
   endResponse(res);
 }
@@ -360,6 +364,20 @@ function openaiError(type: string, message: string): { error: { message: string;
 
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Error dialect for a failed turn.
+ *
+ * A refusal is the caller's request being unacceptable — Claude Code reads
+ * `invalid_request_error` plus the "too large"/"exceeds" wording as a full
+ * context and compacts the conversation, where `api_error` only reports a
+ * provider fault. Everything else stays a provider-side `api_error`.
+ */
+function failureDialect(error: unknown): { status: number; type: 'invalid_request_error' | 'api_error' } {
+  return error instanceof UpstreamRequestRejection
+    ? { status: 400, type: 'invalid_request_error' }
+    : { status: 500, type: 'api_error' };
 }
 
 function isLoopback(host: string): boolean {

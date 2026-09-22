@@ -34,6 +34,22 @@ be replayed without duplicating it in the client. `sso.enabled: false` keeps its
 meaning at runtime: the pool reports the rejected credential and the failure
 rather than opening a browser.
 
+A failure is charged to an account only when the account could plausibly answer
+differently. Upstream also refuses a request that is itself unacceptable — most
+visibly `PROMPT_TOO_LARGE`, once the flattened transcript outgrows the model's
+window — and that refusal arrives as an ordinary 400 that a naive retry loop
+cannot tell from a broken credential. Retrying it consumes the account's quota
+for an answer that cannot change, and counting it toward `pool.error_threshold`
+retires a healthy account over a defect in the caller's prompt: a long
+conversation eventually disables every account in the pool, after which each turn
+fails with an empty pool instead of reporting the real problem. Request-side
+refusals are therefore typed apart from account-side failures. They are not
+retried, not failed over, and not counted, and they leave rotation untouched so
+later turns keep working; the pool answers them as a client error in the route
+dialect, and spells the cause out in plain words, because the client decides
+between "compact and continue" and "give up" by matching that wording rather than
+the upstream wire code.
+
 ## Consequences
 
 `proxy.yaml` starts the pool but never writes to the `/model` list: reaching the
