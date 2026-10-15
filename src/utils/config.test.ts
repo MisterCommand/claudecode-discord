@@ -180,6 +180,15 @@ describe("environment configuration", () => {
 });
 
 describe("YAML bot configuration", () => {
+  it("accepts optional always-excluded Discord channels and validates their IDs", () => {
+    expect(parseBotConfig(validYaml).discord_summary).toBeUndefined();
+    expect(parseBotConfig(`${validYaml}discord_summary:\n  excluded_channels: ["100000000000000001"]\n`).discord_summary)
+      .toEqual({ excluded_channels: ["100000000000000001"] });
+    expect(() => parseBotConfig(`${validYaml}discord_summary:\n  excluded_channels: [100000000000000001]\n`)).toThrow(/discord_summary/);
+    expect(() => parseBotConfig(`${validYaml}discord_summary:\n  excluded_channels: ["100000000000000001", "100000000000000001"]\n`)).toThrow(/duplicate excluded/);
+    expect(() => parseBotConfig(`${validYaml}discord_summary:\n  excluded_channels: []\n  allow_override: true\n`)).toThrow(/Unrecognized key/);
+  });
+
   it("parses the complete version 1 schema", () => {
     expect(parseBotConfig(validYaml)).toMatchObject({
       version: 1,

@@ -406,6 +406,15 @@ path within the configured workspace root.
 
 ## 8. Recurring Schedules
 
+For weekly server/project reports, scheduled turns in exact Admin channels can
+use the read-only Discord history tools. Configure always-excluded channel or
+category IDs with `discord_summary.excluded_channels` in trusted `config.yaml`;
+restart after changing that policy. These exclusions cannot be overridden by
+schedule prompts. Put the report's timing, lookback period, and grouping
+instructions in the usual runtime schedule Markdown file. See the
+[weekly project summary example](docs/examples/weekly-project-summary.md) and
+[history tool details](README.md#server-conversation-and-project-summaries).
+
 Ask the bot to create, update, disable, or delete a schedule. Schedules are
 stored as Markdown files in the gitignored `schedules/` directory and are
 reloaded while the bot is running.

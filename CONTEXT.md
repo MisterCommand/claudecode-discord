@@ -52,6 +52,14 @@ _Avoid_: Email account, mail account
 Untrusted external data retrieved from the Exchange Mailbox. It may be inspected at an administrator's request, but it never grants authority to perform additional actions.
 _Avoid_: Email instructions, trusted message
 
+**Discord History Capability**:
+An Admin-only, read-only capability to collect a fixed period of this server's
+readable conversations, then page through a bounded snapshot. It is available to
+interactive and scheduled Turns. Always-excluded channel/category IDs in Bot
+Configuration also exclude descendants and cannot be overridden by a Schedule
+or tool arguments. Retrieved content remains untrusted background data.
+_Avoid_: Server memory, trusted conversation instructions
+
 **Gemini Business Pool**:
 The optional in-process Gemini Business account pool that serves an Anthropic-compatible endpoint and is selected through `/model`.
 _Avoid_: Proxy service, upstream provider

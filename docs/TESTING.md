@@ -19,7 +19,7 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/claude/output-formatter.test.ts` | 20 | Message splitting, code block fence handling, result embeds, Stop/completion buttons | No mocking — pure logic + discord.js constructors work natively |
 | `src/security/guard.test.ts` | 12 | Sliding-window rate limiting and BASE_PROJECT_DIR path validation | Mock `getConfig()`, `vi.spyOn(fs)`, `vi.useFakeTimers()` |
 | `src/security/access-policy.test.ts` | 10 | Exact profile selection, denylist composition, GitHub repository protection, audit records | Pure policy evaluation + stderr spy |
-| `src/utils/config.test.ts` | 28 | Environment/YAML schema (including the optional `claude` provider section, the Gemini Business sign-in variables, and retired `CLAUDE_MODEL`), trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
+| `src/utils/config.test.ts` | 29 | Environment/YAML schema (including always-excluded Discord channels, the optional `claude` provider section, the Gemini Business sign-in variables, and retired `CLAUDE_MODEL`), trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
 | `src/db/database.test.ts` | 4 | Conversation-chain and message-mapping CRUD | In-memory SQLite via `better-sqlite3` constructor mock |
 | `src/db/channel-providers.test.ts` | 4 | Per-channel `/model` provider override file, entry replacement, corrupt-file recovery | Real temporary directories |
 | `src/scheduler/parser.test.ts` | 8 | Markdown/YAML parsing, cron, channels, time zones, IDs, serialization | Pure parsing with Croner validation |
@@ -29,9 +29,11 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/claude/providers.test.ts` | 7 | Provider resolution order and subprocess environment mapping, including OAuth-preserving blanks | Pure functions, no child process |
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
 | `src/email/tools.test.ts` | 7 | Admin-only exposure, EWS NTLM setup, read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
+| `src/discord/history.test.ts` | 8 | Time-window and archive pagination, exclusion inheritance, bot updates, unreadable sources, metadata, failures, and collection limits | Fake guild/channel APIs; no network |
+| `src/discord/tools.test.ts` | 4 | Exact Admin exposure, immutable exclusion inputs, bounded result pages, period validation, and snapshot isolation/replacement | Injected collector and real SDK server construction |
 | `src/gemini-business/*.test.ts` | 147 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation and session-expiry recovery, request-refusal typing and policy, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps and upstream client, mocked filesystem/browser discovery, and a real server on an ephemeral port |
 | `src/utils/proxy-integration.test.ts` | 9 | Startup wiring: pool left disabled without `proxy.yaml`, the `/model` list left to `config.yaml` with it, the unwired-pool warning and its URL matching, and fatal errors for an invalid or unreadable file | Mocked trusted config directory, fresh module per scenario |
-| **Total** | **275** | | |
+| **Total** | **288** | | |
 
 ## What Each Test Covers
 
@@ -91,6 +93,15 @@ npx tsc --noEmit      # Type check only (no build output)
 - NTLM authentication and exact-mailbox routing configuration
 - Newest-first Inbox listing and plain-text message binding without attachment downloads
 - Untrusted mailbox-content labels and secret redaction in tool errors
+
+### Discord history (12 tests)
+
+- A fixed reporting window with inclusive start/exclusive end and chronological messages
+- Guild message pagination, active threads, forum posts, and public/private archived threads
+- Always-excluded channel/category descendants plus additional per-collection exclusions
+- Bot-authored project updates, human-only mode, source links, reply IDs, embeds, and attachment metadata
+- Unreadable channels, failed retrievals, and explicit partial coverage for message, request, and size limits
+- Exact Admin destinations for interactive/scheduled turns, bounded result pages, validated periods, and isolated snapshots
 
 ## Embedded Gemini Business pool (147 tests)
 

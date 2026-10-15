@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseDocument } from "yaml";
 import { z } from "zod";
+import { summaryChannelIds } from "../discord/history-options.js";
 import {
   GEMINI_BUSINESS_PROVIDER_VALUE, geminiBusinessUrl,
   proxyConfigExists, proxyConfigPath, readProxyConfig,
@@ -138,6 +139,9 @@ const botConfigSchema = z.strictObject({
     restricted_denied: uniqueStrings("duplicate Restricted tool deny rule", true)(toolRuleSchema),
   }),
   claude: z.preprocess((value) => value ?? {}, claudeConfigSchema),
+  discord_summary: z.strictObject({
+    excluded_channels: summaryChannelIds.default([]),
+  }).optional(),
 }).superRefine((config, context) => {
   const globalDenials = new Set(config.tools.denied.map((rule) => rule.toLowerCase()));
   for (let index = 0; index < config.tools.restricted_denied.length; index++) {

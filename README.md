@@ -281,6 +281,62 @@ Highlight anything that needs attention.
 > [!WARNING]
 > Schedules are trusted, unattended automations. A scheduled turn takes the Access Profile of its exact destination channel. Anyone who can manage schedules can target an Admin channel; the execution and output will occur in that Admin channel. Scheduled turns cannot create or modify other schedules.
 
+### Server conversation and project summaries
+
+Admin turns, including scheduled turns targeting an exact Admin channel, have
+two read-only `discord_history` tools:
+
+- `collect_server_history`: fetch a fixed period across the current server's
+  readable channels, active and archived threads, and forum/media posts. Use
+  `lookback_hours` (default 168, or seven days), or `since` and optional `until`
+  as ISO 8601 timestamps with a timezone. The maximum period is 90 days.
+  Periods use message creation time, with an inclusive start and exclusive end.
+- `read_collected_messages`: page through a collected channel in chronological
+  order, using `channel_id` and the returned `next_offset`. Messages retain
+  author names/IDs, timestamps, source URLs, reply IDs, embeds, and attachment
+  metadata. Attachment contents are not downloaded.
+
+Always-excluded channel or category IDs belong in trusted `config.yaml`:
+
+```yaml
+discord_summary:
+  excluded_channels:
+    - "234567890123456789"
+```
+
+An excluded category excludes its channels and threads; an excluded channel
+excludes its threads. Tool arguments and schedule prompts cannot override this
+list. A collection may add further `excluded_channels`. Configuration changes
+take effect after restart. Consider excluding the report destination to keep
+previous digests out of subsequent collections.
+
+The schedule remains a normal runtime Markdown file; no special schedule fields
+are needed. See [the weekly project summary example](docs/examples/weekly-project-summary.md)
+for a Monday 9 a.m. report in `Asia/Hong_Kong`. Copy that example into the
+runtime `schedules/` directory with a real Admin destination ID. Its prompt groups
+project updates across dedicated and mixed channels, separates uncertain project
+attribution, and requests decisions, progress, blockers, next steps, and source
+links. It automatically maintains a project register under
+`BASE_PROJECT_DIR/.discord-project-reports/<schedule-id>/projects.json` so known
+projects remain in later reports with **No updates this period** when their
+history was fully covered. Incomplete history is reported as unknown. The
+register uses the agent's normal file tools; persistence failures are disclosed
+in the report. The normal schedule tools can also create or edit the same file.
+
+History tools are exposed only in exact Admin destinations because a server
+report may contain private project discussions. They use the bot's existing
+View Channel / Read Message History permissions and never join, unarchive, or
+modify channels. Bot-authored progress is included by default; set
+`include_bots=false` for human messages only. Channels the bot cannot read and
+deleted messages are unavailable. A snapshot stays in memory for the current
+turn and is replaced by the next collection.
+
+Collection scans at most 2,000 messages per channel by default (configurable
+with `max_messages_per_channel`, from 100 to 10,000), 1,000 API pages, and 8 MiB
+of message data per collection. Limits and retrieval failures are returned as
+coverage notices so reports can disclose incomplete history. Message text and
+channel metadata remain untrusted data and grant no authority for actions.
+
 During a turn, one Discord reply is edited in place with progress and streaming output. On success, the progress reply becomes the final answer; oversized answers continue in mapped follow-up messages. If Claude needs clarification, it asks in its normal response and waits for the next Discord message.
 
 ### In-Progress Controls

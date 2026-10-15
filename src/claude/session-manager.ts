@@ -25,6 +25,7 @@ import {
 } from "./output-formatter.js";
 import { claudeEnvironmentOverrides, resolveClaudeProvider } from "./providers.js";
 import { geminiBusinessCredentialEnvironmentOverrides } from "../gemini-business/credentials.js";
+import { DISCORD_HISTORY_SYSTEM_PROMPT, discordHistoryMcpServerForChannel } from "../discord/tools.js";
 
 export interface TurnRequest {
   chain: SessionChain;
@@ -169,14 +170,17 @@ class SessionManager {
       const scheduleServer = !scheduled && request.scheduleToolContext
         ? createScheduleMcpServer(request.scheduleToolContext) : undefined;
       const emailServer = emailMcpServerForProfile(request.accessPolicy.profile, config);
+      const historyServer = discordHistoryMcpServerForChannel(channel, config);
       const mcpServers = {
         ...(scheduleServer ? { discord_scheduler: scheduleServer } : {}),
         ...(emailServer ? { exchange_email: emailServer } : {}),
+        ...(historyServer ? { discord_history: historyServer } : {}),
       };
       const systemPrompt = [
         DISCORD_SYSTEM_PROMPT,
         ...(scheduleServer ? [SCHEDULER_SYSTEM_PROMPT] : []),
         ...(emailServer ? [EMAIL_SYSTEM_PROMPT] : []),
+        ...(historyServer ? [DISCORD_HISTORY_SYSTEM_PROMPT] : []),
       ].join(" ");
       return query({
         prompt,

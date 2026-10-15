@@ -11,6 +11,16 @@ tools:
   denied: []
   restricted_denied: []
 
+# Optional. Always exclude these channel/category IDs from Discord history tools.
+# Categories also exclude their channels; channels also exclude their threads.
+# Schedule prompts and tool arguments cannot override this list. Changes require
+# restarting the bot, like the rest of this trusted configuration.
+discord_summary:
+  excluded_channels: []
+  # excluded_channels:
+  #   - "234567890123456789"
+
+
 # Optional. Omit this whole section to keep using the host `claude login`
 # credentials and Claude Code's default model. Each provider below is one entry
 # in the /model switcher: /model picks a provider, and that provider's
