@@ -1,13 +1,34 @@
 import path from "node:path";
-import { ChatInputCommandInteraction, EmbedBuilder, SlashCommandBuilder } from "discord.js";
+import { ChatInputCommandInteraction, EmbedBuilder, escapeMarkdown, SlashCommandBuilder } from "discord.js";
 import { effectiveTimezone } from "../../scheduler/parser.js";
 import { scheduleService } from "../../scheduler/service.js";
 
 export const data = new SlashCommandBuilder()
   .setName("schedules")
-  .setDescription("Show recurring schedules for this channel or thread");
+  .setDescription("Show schedules or run one now in this channel or thread")
+  .addStringOption((option) => option
+    .setName("run")
+    .setDescription("Run a schedule now by its ID or exact name, including paused schedules"));
 
 export async function execute(interaction: ChatInputCommandInteraction): Promise<void> {
+  const identifier = interaction.options.getString("run");
+  if (identifier !== null) {
+    try {
+      const definition = await scheduleService.runNow(identifier, interaction.channelId);
+      await interaction.editReply({
+        content: `Starting **${escapeMarkdown(definition.name)}** now. Results will appear in this channel or thread.`,
+        allowedMentions: { parse: [] },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      await interaction.editReply({
+        content: `Could not start the schedule: ${message}`,
+        allowedMentions: { parse: [] },
+      });
+    }
+    return;
+  }
+
   const statuses = scheduleService.getStatuses(interaction.channelId);
   if (!statuses.length) {
     await interaction.editReply("No schedules are configured for this channel. Ask the bot to create one, or add a Markdown file to the schedules directory.");

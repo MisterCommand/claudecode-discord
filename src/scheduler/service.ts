@@ -175,13 +175,17 @@ export class ScheduleService {
     }, () => {
       const current = this.records.get(definition.id)?.definition;
       if (!current || current.sourceHash !== definition.sourceHash || !current.enabled || !this.runner) return;
-      void this.runner(current).catch((error) => {
-        const message = error instanceof Error ? error.message : String(error);
-        console.error(`[schedule:${current.id}] ${message}`);
-        void this.sendChannelNotice(current.discordChannel, `❌ Scheduled task **${current.name}** could not start: ${message}`);
-      });
+      this.dispatch(current, this.runner);
     });
     this.jobs.set(definition.id, { job, sourceHash: definition.sourceHash });
+  }
+
+  private dispatch(definition: ScheduleDefinition, runner: ScheduleRunner): void {
+    void Promise.resolve().then(() => runner(definition)).catch((error) => {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[schedule:${definition.id}] ${message}`);
+      void this.sendChannelNotice(definition.discordChannel, `❌ Scheduled task **${definition.name}** could not start: ${message}`);
+    });
   }
 
   private async notifyValidationFailure(record: RegistryRecord): Promise<void> {
@@ -253,6 +257,19 @@ export class ScheduleService {
     const cron = createCron(definition.cron, definition.timezone);
     try { return cron.nextRuns(count); }
     finally { cron.stop(); }
+  }
+
+  async runNow(identifier: string, channelId: string): Promise<ScheduleDefinition> {
+    await this.reconcile();
+    if (!this.started || !this.runner) {
+      throw new Error("The scheduler is not running. Check the bot's startup logs for errors.");
+    }
+    const definition = this.getDefinition(identifier.trim());
+    if (!definition || definition.discordChannel !== channelId) {
+      throw new Error("No valid schedule with that ID or name exists in this channel or thread. Use /schedules to check schedule IDs and validation errors.");
+    }
+    this.dispatch(definition, this.runner);
+    return definition;
   }
 
   async create(input: ScheduleCreateInput): Promise<ScheduleDefinition> {

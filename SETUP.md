@@ -394,7 +394,7 @@ path within the configured workspace root.
 | `/status` | Show session status in the current channel or thread |
 | `/sessions` | Inspect, resume, or delete sessions |
 | `/usage` | Show Claude Code Session, Weekly, and Sonnet usage |
-| `/schedules` | Show recurring schedules |
+| `/schedules` | Show schedules; use `run:<ID or exact name>` to run one now |
 | `/model` | Show or switch the Claude provider (endpoint, key, and model) for the current channel or thread |
 
 ### Profiles and controls
@@ -418,6 +418,12 @@ instructions in the usual runtime schedule Markdown file. See the
 Ask the bot to create, update, disable, or delete a schedule. Schedules are
 stored as Markdown files in the gitignored `schedules/` directory and are
 reloaded while the bot is running.
+
+To run a schedule immediately, use `/schedules run:daily-summary` in its
+destination channel or thread. Use `/schedules` to find the ID, or enter the
+exact schedule name. This also works for paused schedules and leaves their
+recurring timing and enabled state unchanged. Each manual run starts a fresh
+session and posts progress and results in that channel or thread.
 
 Each schedule requires `name`, a five-field `cron`, a quoted
 `discord_channel`, and a non-empty Markdown prompt. Optional fields include

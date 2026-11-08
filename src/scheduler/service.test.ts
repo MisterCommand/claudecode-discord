@@ -10,6 +10,14 @@ const channel = "123456789012345678";
 let directory: string;
 let service: ScheduleService;
 
+function mockClient() {
+  const send = vi.fn().mockResolvedValue(undefined);
+  const client = {
+    channels: { fetch: vi.fn().mockResolvedValue({ guildId: "guild", isSendable: () => true, send }) },
+  } as unknown as Client;
+  return { client, send };
+}
+
 beforeEach(() => {
   directory = fs.mkdtempSync(path.join(os.tmpdir(), "claude-schedules-"));
   service = new ScheduleService(directory, 60_000);
@@ -18,6 +26,7 @@ beforeEach(() => {
 afterEach(() => {
   service.stop();
   fs.rmSync(directory, { recursive: true, force: true });
+  vi.restoreAllMocks();
 });
 
 describe("ScheduleService", () => {
@@ -95,5 +104,99 @@ describe("ScheduleService", () => {
     const [status] = service.getStatuses(channel);
     expect(status.definition).toBeUndefined();
     expect(status.error).toContain("unavailable or not sendable");
+  });
+
+  it.each([true, false])("runs an enabled=%s schedule by ID and name without waiting or changing its timer", async (enabled) => {
+    const definition = await service.create({
+      name: "Daily summary", cron: "0 8 * * *", discordChannel: channel, enabled, prompt: "Run",
+    });
+    const { client } = mockClient();
+    const runner = vi.fn(() => new Promise<void>(() => undefined));
+    await service.start(client, runner);
+    const originalFile = fs.readFileSync(definition.filePath, "utf8");
+    const nextRun = service.getStatuses(channel)[0].nextRun;
+
+    await expect(service.runNow(` ${definition.id.toUpperCase()} `, channel)).resolves.toEqual(definition);
+    await expect(service.runNow("daily SUMMARY", channel)).resolves.toEqual(definition);
+
+    expect(runner).toHaveBeenCalledTimes(2);
+    expect(runner).toHaveBeenLastCalledWith(definition);
+    expect(fs.readFileSync(definition.filePath, "utf8")).toBe(originalFile);
+    expect(service.getStatuses(channel)[0].nextRun).toEqual(nextRun);
+    expect(service.getDefinition(definition.id)?.enabled).toBe(enabled);
+  });
+
+  it("rejects schedules targeting any other channel or thread", async () => {
+    const definition = await service.create({
+      name: "Private summary", cron: "0 8 * * *", discordChannel: channel, prompt: "Run",
+    });
+    const { client } = mockClient();
+    const runner = vi.fn(async () => undefined);
+    await service.start(client, runner);
+
+    for (const identifier of [definition.id, definition.name]) {
+      await expect(service.runNow(identifier, "987654321098765432")).rejects.toThrow(/in this channel or thread/);
+    }
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("reads direct edits before starting a manual run", async () => {
+    const definition = await service.create({
+      name: "Daily summary", cron: "0 8 * * *", discordChannel: channel, prompt: "Old prompt",
+    });
+    const { client } = mockClient();
+    const runner = vi.fn(async () => undefined);
+    await service.start(client, runner);
+    fs.writeFileSync(definition.filePath, serializeSchedule({
+      ...definition, prompt: "Updated prompt", enabled: false,
+    }));
+
+    await service.runNow(definition.id, channel);
+    expect(runner).toHaveBeenCalledWith(expect.objectContaining({ prompt: "Updated prompt", enabled: false }));
+  });
+
+  it("rejects missing, invalid, and deleted schedules without running stale definitions", async () => {
+    const definition = await service.create({
+      name: "Daily summary", cron: "0 8 * * *", discordChannel: channel, prompt: "Run",
+    });
+    const { client } = mockClient();
+    const runner = vi.fn(async () => undefined);
+    await service.start(client, runner);
+    await expect(service.runNow("missing", channel)).rejects.toThrow(/Use \/schedules/);
+
+    fs.writeFileSync(definition.filePath, "---\nname: Broken\n---\nPrompt\n");
+    await expect(service.runNow(definition.id, channel)).rejects.toThrow(/validation errors/);
+
+    fs.unlinkSync(definition.filePath);
+    await expect(service.runNow(definition.id, channel)).rejects.toThrow(/Use \/schedules/);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("rejects manual runs when the scheduler has not started or has stopped", async () => {
+    const definition = await service.create({
+      name: "Daily summary", cron: "0 8 * * *", discordChannel: channel, prompt: "Run",
+    });
+    await expect(service.runNow(definition.id, channel)).rejects.toThrow(/scheduler is not running/);
+    const { client } = mockClient();
+    const runner = vi.fn(async () => undefined);
+    await service.start(client, runner);
+    service.stop();
+    await expect(service.runNow(definition.id, channel)).rejects.toThrow(/scheduler is not running/);
+    expect(runner).not.toHaveBeenCalled();
+  });
+
+  it("posts background failures to the destination after acknowledging a manual run", async () => {
+    const definition = await service.create({
+      name: "Daily summary", cron: "0 8 * * *", discordChannel: channel, prompt: "Run",
+    });
+    const { client, send } = mockClient();
+    const runner = vi.fn().mockRejectedValue(new Error("Could not create a session"));
+    await service.start(client, runner);
+    await expect(service.runNow(definition.id, channel)).resolves.toEqual(definition);
+    await vi.waitFor(() => expect(send).toHaveBeenCalledWith({
+      content: "❌ Scheduled task **Daily summary** could not start: Could not create a session",
+      allowedMentions: { parse: [] },
+    }));
+    expect(client.channels.fetch).toHaveBeenLastCalledWith(channel);
   });
 });

@@ -23,8 +23,8 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/db/database.test.ts` | 4 | Conversation-chain and message-mapping CRUD | In-memory SQLite via `better-sqlite3` constructor mock |
 | `src/db/channel-providers.test.ts` | 4 | Per-channel `/model` provider override file, entry replacement, corrupt-file recovery | Real temporary directories |
 | `src/scheduler/parser.test.ts` | 8 | Markdown/YAML parsing, cron, channels, time zones, IDs, serialization | Pure parsing with Croner validation |
-| `src/scheduler/service.test.ts` | 7 | Schedule CRUD, collisions, invalid edits, duplicate names, channel validation, next-run enumeration, concurrency | Real temporary directories |
-| `src/bot/commands/schedules.test.ts` | 2 | Empty, valid, and invalid `/schedules` rendering | Mock scheduler statuses |
+| `src/scheduler/service.test.ts` | 14 | Schedule CRUD, collisions, invalid edits, duplicate names, channel validation, next-run enumeration, concurrency, manual runs and failures | Real temporary directories |
+| `src/bot/commands/schedules.test.ts` | 6 | Empty, valid, and invalid `/schedules` rendering, optional manual runs, exact destination forwarding, and error guidance | Mock scheduler statuses and runner |
 | `src/bot/commands/model.test.ts` | 6 | Registered `/model` provider choices and set/show/stale/reset replies | Mock config and channel provider store |
 | `src/claude/providers.test.ts` | 7 | Provider resolution order and subprocess environment mapping, including OAuth-preserving blanks | Pure functions, no child process |
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
@@ -33,7 +33,7 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/discord/tools.test.ts` | 4 | Exact Admin exposure, immutable exclusion inputs, bounded result pages, period validation, and snapshot isolation/replacement | Injected collector and real SDK server construction |
 | `src/gemini-business/*.test.ts` | 147 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation and session-expiry recovery, request-refusal typing and policy, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps and upstream client, mocked filesystem/browser discovery, and a real server on an ephemeral port |
 | `src/utils/proxy-integration.test.ts` | 9 | Startup wiring: pool left disabled without `proxy.yaml`, the `/model` list left to `config.yaml` with it, the unwired-pool warning and its URL matching, and fatal errors for an invalid or unreadable file | Mocked trusted config directory, fresh module per scenario |
-| **Total** | **288** | | |
+| **Total** | **299** | | |
 
 ## What Each Test Covers
 
@@ -81,10 +81,13 @@ npx tsc --noEmit      # Type check only (no build output)
 - `/model` registered choices and set/show/stale-override/reset reply text
 - Provider credentials and tunables mapped to the subprocess environment, with blanks keeping `claude login` and the inherited `CLAUDE_CODE_*` values
 
-### scheduler (18 tests)
+### scheduler (28 tests)
 
 - YAML front matter, five-field cron and IANA time-zone validation, safe schedule IDs, and serialization
 - File-backed CRUD, case-insensitive name collisions, invalid direct edits, disabled timers, and next-run enumeration
+- Manual runs by ID or exact name, including paused schedules, without waiting for completion or changing the recurring timer
+- Exact destination checks, direct file edits, missing/invalid/deleted schedules, stopped runtime, and background failure notices
+- `/schedules` listing compatibility, optional `run` registration, escaped acknowledgements, and error guidance
 
 ### Exchange email (7 tests)
 

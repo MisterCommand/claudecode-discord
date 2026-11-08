@@ -222,7 +222,7 @@ Replying to an otherwise unrelated human message while mentioning the bot starts
 | `/status` | Show sessions in the current channel or thread |
 | `/sessions` | Inspect or delete sessions in the current channel or thread |
 | `/usage` | Show Claude Code usage |
-| `/schedules` | Show recurring schedules for the current channel or thread |
+| `/schedules` | Show schedules for the current channel or thread; use `run:<ID or exact name>` to run one now |
 | `/model` | Show or switch the provider (endpoint, key, and model) for the current channel or thread |
 
 ### Model selection
@@ -253,6 +253,8 @@ Ask the bot to manage a schedule in normal language:
 ```
 
 The bot translates explicit scheduling requests into built-in schedule tools. Creating, updating, and deleting schedules happens immediately without another approval prompt. Each scheduled occurrence starts a fresh session; reply to its Discord result to continue that specific session.
+
+Use `/schedules` to find a schedule's ID, then `/schedules run:daily-summary` to run it immediately. The `run` option also accepts the exact schedule name. Run the command in the schedule's destination channel or thread; progress and results appear there in a fresh session. Paused schedules can also run manually. A manual run leaves the recurring timing and enabled state unchanged.
 
 Schedules are stored as one Markdown file per task in the automatically created, gitignored `schedules/` directory. For normal installations this is inside the installation directory. In Docker it is `/data/schedules`, which is covered by the existing data volume. Files can also be edited directly while the bot is running; changes are detected automatically.
 
