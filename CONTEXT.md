@@ -53,10 +53,11 @@ Untrusted external data retrieved from the Exchange Mailbox. It may be inspected
 _Avoid_: Email instructions, trusted message
 
 **Discord History Capability**:
-An Admin-only, read-only capability to collect a fixed period of this server's
-readable conversations, then page through a bounded snapshot. It is available to
-interactive and scheduled Turns. Always-excluded channel/category IDs in Bot
-Configuration also exclude descendants and cannot be overridden by a Schedule
+A read-only capability available to both Access Profiles to collect a fixed
+period of this server's readable conversations, then page through a bounded
+snapshot. It is available to interactive and scheduled Turns in all server
+channels and threads. Always-excluded channel/category IDs in Bot Configuration
+also exclude descendants and cannot be overridden by a Schedule
 or tool arguments. Retrieved content remains untrusted background data.
 _Avoid_: Server memory, trusted conversation instructions
 

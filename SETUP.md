@@ -406,9 +406,10 @@ path within the configured workspace root.
 
 ## 8. Recurring Schedules
 
-For weekly server/project reports, scheduled turns in exact Admin channels can
-use the read-only Discord history tools. Configure always-excluded channel or
-category IDs with `discord_summary.excluded_channels` in trusted `config.yaml`;
+For weekly server/project reports, interactive and scheduled turns in any server
+channel or thread can use the read-only Discord history tools. Configure
+always-excluded channel or category IDs with `discord_summary.excluded_channels`
+in trusted `config.yaml`;
 restart after changing that policy. These exclusions cannot be overridden by
 schedule prompts. Put the report's timing, lookback period, and grouping
 instructions in the usual runtime schedule Markdown file. See the

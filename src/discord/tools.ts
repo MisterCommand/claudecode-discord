@@ -72,7 +72,7 @@ export class DiscordHistoryReader {
 }
 
 export function discordHistoryMcpServerForChannel(channel: SendableChannels, config: BotFileConfig) {
-  if (!config.access.admin_channels.includes(channel.id) || !("guild" in channel)) return undefined;
+  if (!("guild" in channel)) return undefined;
   const reader = new DiscordHistoryReader(channel.guild, config.discord_summary?.excluded_channels ?? []);
   return createSdkMcpServer({
     name: "discord_history",

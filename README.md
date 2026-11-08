@@ -285,8 +285,8 @@ Highlight anything that needs attention.
 
 ### Server conversation and project summaries
 
-Admin turns, including scheduled turns targeting an exact Admin channel, have
-two read-only `discord_history` tools:
+Interactive and scheduled turns in all server channels and threads have two
+read-only `discord_history` tools, regardless of Access Profile:
 
 - `collect_server_history`: fetch a fixed period across the current server's
   readable channels, active and archived threads, and forum/media posts. Use
@@ -315,8 +315,8 @@ previous digests out of subsequent collections.
 The schedule remains a normal runtime Markdown file; no special schedule fields
 are needed. See [the weekly project summary example](docs/examples/weekly-project-summary.md)
 for a Monday 9 a.m. report in `Asia/Hong_Kong`. Copy that example into the
-runtime `schedules/` directory with a real Admin destination ID. Its prompt groups
-project updates across dedicated and mixed channels, separates uncertain project
+runtime `schedules/` directory with a real destination channel or thread ID. Its
+prompt groups project updates across dedicated and mixed channels, separates uncertain project
 attribution, and requests decisions, progress, blockers, next steps, and source
 links. It automatically maintains a project register under
 `BASE_PROJECT_DIR/.discord-project-reports/<schedule-id>/projects.json` so known
@@ -325,8 +325,8 @@ history was fully covered. Incomplete history is reported as unknown. The
 register uses the agent's normal file tools; persistence failures are disclosed
 in the report. The normal schedule tools can also create or edit the same file.
 
-History tools are exposed only in exact Admin destinations because a server
-report may contain private project discussions. They use the bot's existing
+History tools collect from the bot's readable server channels, including private
+project discussions unless excluded by configuration. They use the bot's existing
 View Channel / Read Message History permissions and never join, unarchive, or
 modify channels. Bot-authored progress is included by default; set
 `include_bots=false` for human messages only. Channels the bot cannot read and

@@ -17,6 +17,7 @@ npx tsc --noEmit      # Type check only (no build output)
 | Test File | Tests | Target Module | Strategy |
 |---|---|---|---|
 | `src/claude/output-formatter.test.ts` | 20 | Message splitting, code block fence handling, result embeds, Stop/completion buttons | No mocking — pure logic + discord.js constructors work natively |
+| `src/claude/session-manager.test.ts` | 2 | Discord history server and instructions passed to the SDK for non-Admin interactive/scheduled turns, with tool denials preserved | Mock SDK query and database; real history server construction |
 | `src/security/guard.test.ts` | 12 | Sliding-window rate limiting and BASE_PROJECT_DIR path validation | Mock `getConfig()`, `vi.spyOn(fs)`, `vi.useFakeTimers()` |
 | `src/security/access-policy.test.ts` | 10 | Exact profile selection, denylist composition, GitHub repository protection, audit records | Pure policy evaluation + stderr spy |
 | `src/utils/config.test.ts` | 29 | Environment/YAML schema (including always-excluded Discord channels, the optional `claude` provider section, the Gemini Business sign-in variables, and retired `CLAUDE_MODEL`), trusted filesystem validation, and load-once lifecycle | Pure parsing + filesystem metadata mocks |
@@ -30,10 +31,10 @@ npx tsc --noEmit      # Type check only (no build output)
 | `src/observability/telemetry.test.ts` | 4 | Attribute bounds, secret removal, trace propagation, and lifecycle export | OpenTelemetry span exporter and SDK mocks |
 | `src/email/tools.test.ts` | 7 | Admin-only exposure, EWS NTLM setup, read operations, untrusted-result labels, and secret redaction | Fake EWS service and reader; no network |
 | `src/discord/history.test.ts` | 8 | Time-window and archive pagination, exclusion inheritance, bot updates, unreadable sources, metadata, failures, and collection limits | Fake guild/channel APIs; no network |
-| `src/discord/tools.test.ts` | 4 | Exact Admin exposure, immutable exclusion inputs, bounded result pages, period validation, and snapshot isolation/replacement | Injected collector and real SDK server construction |
+| `src/discord/tools.test.ts` | 7 | Both Access Profiles and threads, direct-message exclusion, immutable exclusion inputs, bounded result pages, period validation, and snapshot isolation/replacement | Injected collector and real SDK server construction |
 | `src/gemini-business/*.test.ts` | 147 | Vendored pool plus integration glue: Anthropic/OpenAI translation, streaming tool-call emulation, incremental JSON reading, rotation and session-expiry recovery, request-refusal typing and policy, HTTP routes, `proxy.yaml` schema, startup sign-in policy, account capture store, and container-aware browser launch | Pure functions, injected sign-in deps and upstream client, mocked filesystem/browser discovery, and a real server on an ephemeral port |
 | `src/utils/proxy-integration.test.ts` | 9 | Startup wiring: pool left disabled without `proxy.yaml`, the `/model` list left to `config.yaml` with it, the unwired-pool warning and its URL matching, and fatal errors for an invalid or unreadable file | Mocked trusted config directory, fresh module per scenario |
-| **Total** | **299** | | |
+| **Total** | **304** | | |
 
 ## What Each Test Covers
 
@@ -97,14 +98,15 @@ npx tsc --noEmit      # Type check only (no build output)
 - Newest-first Inbox listing and plain-text message binding without attachment downloads
 - Untrusted mailbox-content labels and secret redaction in tool errors
 
-### Discord history (12 tests)
+### Discord history (17 tests)
 
 - A fixed reporting window with inclusive start/exclusive end and chronological messages
 - Guild message pagination, active threads, forum posts, and public/private archived threads
 - Always-excluded channel/category descendants plus additional per-collection exclusions
 - Bot-authored project updates, human-only mode, source links, reply IDs, embeds, and attachment metadata
 - Unreadable channels, failed retrievals, and explicit partial coverage for message, request, and size limits
-- Exact Admin destinations for interactive/scheduled turns, bounded result pages, validated periods, and isolated snapshots
+- Both Access Profiles and server threads, direct-message exclusion, bounded result pages, validated periods, and isolated snapshots
+- History server and system instructions passed to the SDK for non-Admin interactive/scheduled turns, with existing tool denials preserved
 
 ## Embedded Gemini Business pool (147 tests)
 

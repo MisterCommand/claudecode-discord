@@ -66,11 +66,18 @@ describe("Discord history tool snapshots", () => {
     expect(collect).toHaveBeenCalledTimes(2);
   });
 
-  it("exposes tools only in exact Admin destinations with a guild, including scheduled turn destinations", () => {
+  it.each([
+    { id: channelId, guild: {} },
+    { id: "100000000000000002", guild: {} },
+    { id: "100000000000000003", guild: {}, parentId: channelId },
+  ])("exposes tools in server channel/thread $id regardless of its Access Profile", (destination) => {
     const config = { access: { admin_channels: [channelId] }, discord_summary: { excluded_channels: [] } } as unknown as BotFileConfig;
-    const channel = { id: channelId, guild: {} } as SendableChannels;
-    expect(discordHistoryMcpServerForChannel(channel, config)).toMatchObject({ type: "sdk", name: "discord_history" });
-    expect(discordHistoryMcpServerForChannel({ id: "100000000000000002", guild: {}, parentId: channelId } as unknown as SendableChannels, config)).toBeUndefined();
+    expect(discordHistoryMcpServerForChannel(destination as SendableChannels, config))
+      .toMatchObject({ type: "sdk", name: "discord_history" });
+  });
+
+  it("does not expose server history in direct messages", () => {
+    const config = { access: { admin_channels: [channelId] } } as unknown as BotFileConfig;
     expect(discordHistoryMcpServerForChannel({ id: channelId } as SendableChannels, config)).toBeUndefined();
   });
 });
